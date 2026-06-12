@@ -1,0 +1,43 @@
+// models/comment.dart
+class Comment {
+  final String id;
+  final String postId;
+  final String patientId;
+  final String? parentId;
+  final String content;
+  final bool isDeleted;
+  final int likeCount;
+  final bool isLiked;
+  final String? authorName;
+  final List<Comment> replies;
+  final DateTime createdAt;
+
+  Comment({
+    required this.id,
+    required this.postId,
+    required this.patientId,
+    this.parentId,
+    required this.content,
+    this.isDeleted = false,
+    this.likeCount = 0,
+    this.isLiked = false,
+    this.authorName,
+    this.replies = const [],
+    required this.createdAt,
+  });
+
+  factory Comment.fromMap(Map<String, dynamic> map, {bool isLiked = false}) {
+    return Comment(
+      id: map['id'],
+      postId: map['post_id'],
+      patientId: map['patient_id'],
+      parentId: map['parent_id'],
+      content: map['content'],
+      isDeleted: map['is_deleted'] ?? false,
+      likeCount: map['like_count'] ?? 0,
+      isLiked: isLiked,
+      authorName: map['author_name'],
+      createdAt: DateTime.parse(map['created_at']),
+    );
+  }
+}
