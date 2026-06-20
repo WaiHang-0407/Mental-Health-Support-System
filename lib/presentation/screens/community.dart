@@ -45,7 +45,7 @@ class _CommunityPageState extends State<CommunityPage>
     super.dispose();
   }
 
-  void _showReportDialog(String postId) {
+  Future<void> _showReportDialog(Post post) async {
     final reasons = [
       'Inappropriate content',
       'Spam',
@@ -54,7 +54,9 @@ class _CommunityPageState extends State<CommunityPage>
       'Other',
     ];
     String? selected;
-    showDialog(
+    final otherReasonController = TextEditingController();
+
+    await showDialog(
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
@@ -65,23 +67,43 @@ class _CommunityPageState extends State<CommunityPage>
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: reasons
-                .map(
-                  (r) => RadioListTile<String>(
-                    value: r,
-                    groupValue: selected,
-                    onChanged: (v) => setS(() => selected = v),
-                    title: Text(
-                      r,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
-                    activeColor: Colors.white,
+            children: [
+              ...reasons.map(
+                (r) => RadioListTile<String>(
+                  value: r,
+                  groupValue: selected,
+                  onChanged: (v) => setS(() => selected = v),
+                  title: Text(
+                    r,
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
                   ),
-                )
-                .toList(),
+                  activeColor: Colors.white,
+                ),
+              ),
+              if (selected == 'Other') ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: otherReasonController,
+                  style: const TextStyle(color: Colors.white),
+                  maxLines: 3,
+                  minLines: 1,
+                  decoration: InputDecoration(
+                    hintText: 'Type your reason...',
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: Colors.white24),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: Colors.white70),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                  onChanged: (_) => setS(() {}),
+                ),
+              ],
+            ],
           ),
           actions: [
             TextButton(
@@ -92,13 +114,29 @@ class _CommunityPageState extends State<CommunityPage>
               ),
             ),
             TextButton(
-              onPressed: selected == null
+              onPressed:
+                  selected == null ||
+                      (selected == 'Other' &&
+                          otherReasonController.text.trim().isEmpty)
                   ? null
-                  : () {
+                  : () async {
+                      final reason = selected == 'Other'
+                          ? otherReasonController.text.trim()
+                          : selected!;
                       Navigator.pop(context);
-                      _postController.reportPost(postId, selected!);
+                      final reported = await _postController.reportPost(
+                        post,
+                        reason,
+                      );
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Report submitted')),
+                        SnackBar(
+                          content: Text(
+                            reported
+                                ? 'Report submitted'
+                                : 'Unable to submit report',
+                          ),
+                        ),
                       );
                     },
               child: const Text(
@@ -110,6 +148,7 @@ class _CommunityPageState extends State<CommunityPage>
         ),
       ),
     );
+    otherReasonController.dispose();
   }
 
   Widget _buildProfileIcon() {
@@ -307,7 +346,7 @@ class _CommunityPageState extends State<CommunityPage>
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  _showReportDialog(post.id);
+                  _showReportDialog(post);
                 },
               ),
           ],

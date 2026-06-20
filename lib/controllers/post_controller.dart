@@ -40,7 +40,10 @@ class PostController extends ChangeNotifier {
     }
   }
 
-  Future<bool> createPost(String content, {List<File> images = const []}) async {
+  Future<bool> createPost(
+    String content, {
+    List<File> images = const [],
+  }) async {
     isSaving = true;
     notifyListeners();
     try {
@@ -82,13 +85,18 @@ class PostController extends ChangeNotifier {
       final i = myPosts.indexWhere((p) => p.id == post.id);
       if (i != -1) {
         myPosts[i] = Post(
-          id: post.id, patientId: post.patientId,
-          content: post.content, imageUrls: post.imageUrls,
+          id: post.id,
+          patientId: post.patientId,
+          content: post.content,
+          imageUrls: post.imageUrls,
           isDeleted: post.isDeleted,
           isArchived: !post.isArchived, // 👈 flip
-          likeCount: post.likeCount, commentCount: post.commentCount,
-          isLiked: post.isLiked, isSaved: post.isSaved,
-          authorName: post.authorName, createdAt: post.createdAt,
+          likeCount: post.likeCount,
+          commentCount: post.commentCount,
+          isLiked: post.isLiked,
+          isSaved: post.isSaved,
+          authorName: post.authorName,
+          createdAt: post.createdAt,
         );
       }
       notifyListeners();
@@ -101,12 +109,16 @@ class PostController extends ChangeNotifier {
     final i = posts.indexWhere((p) => p.id == post.id);
     if (i == -1) return;
     posts[i] = Post(
-      id: post.id, patientId: post.patientId,
-      content: post.content, imageUrls: post.imageUrls,
+      id: post.id,
+      patientId: post.patientId,
+      content: post.content,
+      imageUrls: post.imageUrls,
       isLiked: !post.isLiked,
       likeCount: post.isLiked ? post.likeCount - 1 : post.likeCount + 1,
-      commentCount: post.commentCount, isSaved: post.isSaved,
-      authorName: post.authorName, createdAt: post.createdAt,
+      commentCount: post.commentCount,
+      isSaved: post.isSaved,
+      authorName: post.authorName,
+      createdAt: post.createdAt,
     );
     notifyListeners();
     try {
@@ -121,12 +133,16 @@ class PostController extends ChangeNotifier {
     final i = posts.indexWhere((p) => p.id == post.id);
     if (i == -1) return;
     posts[i] = Post(
-      id: post.id, patientId: post.patientId,
-      content: post.content, imageUrls: post.imageUrls,
-      isLiked: post.isLiked, likeCount: post.likeCount,
+      id: post.id,
+      patientId: post.patientId,
+      content: post.content,
+      imageUrls: post.imageUrls,
+      isLiked: post.isLiked,
+      likeCount: post.likeCount,
       commentCount: post.commentCount,
       isSaved: !post.isSaved,
-      authorName: post.authorName, createdAt: post.createdAt,
+      authorName: post.authorName,
+      createdAt: post.createdAt,
     );
     notifyListeners();
     try {
@@ -137,11 +153,17 @@ class PostController extends ChangeNotifier {
     }
   }
 
-  Future<void> reportPost(String postId, String reason) async {
+  Future<bool> reportPost(Post post, String reason) async {
     try {
-      await _repo.reportPost(postId, reason);
+      await _repo.reportPost(
+        postId: post.id,
+        postOwnerId: post.patientId,
+        reason: reason,
+      );
+      return true;
     } catch (e) {
       debugPrint('reportPost error: $e');
+      return false;
     }
   }
 }

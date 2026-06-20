@@ -1,93 +1,85 @@
 -- Users table: holds general account info
 CREATE TABLE users (
-    id UUID PRIMARY KEY,
-    role VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  id UUID PRIMARY KEY,
+  role VARCHAR(50) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- Patients table: holds patient-specific info
 CREATE TABLE patients (
-    id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(100),
-    gender VARCHAR(20),
-    dob DATE,
-    phoneno VARCHAR(20),
-    condition TEXT,
-    fav_animal VARCHAR(50),
-    fav_activity VARCHAR(50)
+  id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(100),
+  gender VARCHAR(20),
+  dob DATE,
+  phoneno VARCHAR(20),
+  condition TEXT,
+  fav_animal VARCHAR(50),
+  fav_activity VARCHAR(50),
+  avatar_url TEXT
 );
 
--- Enable RLS if not already
-alter table users enable row level security;
-
-alter table patients enable row level security;
-
+-- Chat sessions
 CREATE TABLE chat_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  title TEXT,                        -- e.g. "Chat 1", or first message preview
-  created_at TIMESTAMP DEFAULT NOW()
+  title TEXT,
+  animal TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  CONSTRAINT unique_patient_animal UNIQUE (patient_id, animal)
 );
 
+-- Chat messages
 CREATE TABLE chat_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
   content TEXT NOT NULL,
   image_url TEXT,
+  is_deleted BOOLEAN DEFAULT FALSE,
+  is_hidden BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW()
 );
-
--- RLS
-ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE chat_sessions ADD COLUMN animal TEXT;
-ALTER TABLE chat_sessions ADD CONSTRAINT unique_patient_animal 
-  UNIQUE (patient_id, animal);
-
-ALTER TABLE chat_messages ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE;
-ALTER TABLE chat_messages ADD COLUMN is_hidden BOOLEAN DEFAULT FALSE;
 
 -- Posts
 CREATE TABLE posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
-  image_url TEXT,
+  image_urls TEXT,
   is_deleted BOOLEAN DEFAULT FALSE,
-  deleted_by UUID REFERENCES users(id),  -- who deleted (admin or self)
+  is_archived BOOLEAN DEFAULT FALSE,
+  deleted_by UUID REFERENCES users(id),
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Comments (supports nested via parent_id)
+-- Comments, supports nested replies through parent_id
 CREATE TABLE comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  parent_id UUID REFERENCES comments(id) ON DELETE CASCADE, -- null = top level
+  parent_id UUID REFERENCES comments(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
   is_deleted BOOLEAN DEFAULT FALSE,
   deleted_by UUID REFERENCES users(id),
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Likes (posts)
+-- Post likes
 CREATE TABLE post_likes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(post_id, patient_id)
+  UNIQUE (post_id, patient_id)
 );
 
--- Likes (comments)
+-- Comment likes
 CREATE TABLE comment_likes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(comment_id, patient_id)
+  UNIQUE (comment_id, patient_id)
 );
 
 -- Saved posts
@@ -96,7 +88,7 @@ CREATE TABLE saved_posts (
   post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(post_id, patient_id)
+  UNIQUE (post_id, patient_id)
 );
 
 -- Reports
@@ -133,7 +125,7 @@ CREATE TABLE activity_registrations (
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
   is_cancelled BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(activity_id, patient_id)
+  UNIQUE (activity_id, patient_id)
 );
 
 -- Sponsorships
@@ -159,17 +151,21 @@ CREATE TABLE sponsorship_products (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- User activity log (FR-27)
+-- User activity log
 CREATE TABLE user_activity_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  action TEXT NOT NULL,  -- 'post_created', 'comment_liked', etc.
-  target_type TEXT,      -- 'post', 'comment', 'activity'
+  action TEXT NOT NULL,
+  target_type TEXT,
   target_id UUID,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- RLS
+-- Enable row level security
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE patients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
@@ -181,11 +177,3 @@ ALTER TABLE activity_registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sponsorships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sponsorship_products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_activity_logs ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE posts ADD COLUMN is_archived BOOLEAN DEFAULT FALSE;
-
--- Replace single image_url with image_urls (comma-separated)
-ALTER TABLE posts RENAME COLUMN image_url TO image_urls;
-
--- Add avatar to patients table
-ALTER TABLE patients ADD COLUMN avatar_url TEXT;

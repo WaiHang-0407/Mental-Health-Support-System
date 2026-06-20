@@ -96,12 +96,16 @@ class PostRepository {
     String content, {
     List<String> imageUrls = const [],
   }) async {
-    await supabase.from('posts').insert({
-      'patient_id': _uid,
-      'content': content,
-      'image_urls': imageUrls.join(','), // store as comma-separated
-    });
-    await _log('post_created');
+    final data = await supabase
+        .from('posts')
+        .insert({
+          'patient_id': _uid,
+          'content': content,
+          'image_urls': imageUrls.join(','), // store as comma-separated
+        })
+        .select('id')
+        .single();
+    await _log('post_created', targetId: data['id']);
   }
 
   Future<void> softDeletePost(String postId) async {
@@ -118,6 +122,10 @@ class PostRepository {
         .from('posts')
         .update({'is_archived': !isArchived})
         .eq('id', postId);
+    await _log(
+      isArchived ? 'post_unarchived' : 'post_archived',
+      targetId: postId,
+    );
   }
 
   Future<void> toggleLike(String postId, bool isLiked) async {
@@ -143,6 +151,7 @@ class PostRepository {
           .delete()
           .eq('post_id', postId)
           .eq('patient_id', _uid);
+      await _log('post_unsaved', targetId: postId);
     } else {
       await supabase.from('saved_posts').insert({
         'post_id': postId,
@@ -152,12 +161,21 @@ class PostRepository {
     }
   }
 
-  Future<void> reportPost(String postId, String reason) async {
+  Future<void> reportPost({
+    required String postId,
+    required String postOwnerId,
+    required String reason,
+  }) async {
+    if (postOwnerId == _uid) {
+      throw StateError('Users cannot report their own posts.');
+    }
+
     await supabase.from('reports').insert({
       'reporter_id': _uid,
       'post_id': postId,
       'reason': reason,
     });
+    await _log('post_reported', targetId: postId);
   }
 
   // Upload multiple images

@@ -80,7 +80,10 @@ class CommentRepository {
       'content': content,
       if (parentId != null) 'parent_id': parentId,
     });
-    await _log('comment_created', targetId: postId);
+    await _log(
+      parentId == null ? 'comment_created' : 'comment_replied',
+      targetId: parentId ?? postId,
+    );
   }
 
   Future<void> softDeleteComment(String commentId) async {
@@ -88,6 +91,7 @@ class CommentRepository {
         .from('comments')
         .update({'is_deleted': true, 'deleted_by': _uid})
         .eq('id', commentId);
+    await _log('comment_deleted', targetId: commentId);
   }
 
   Future<void> toggleLike(String commentId, bool isLiked) async {
@@ -105,12 +109,21 @@ class CommentRepository {
     }
   }
 
-  Future<void> reportComment(String commentId, String reason) async {
+  Future<void> reportComment({
+    required String commentId,
+    required String commentOwnerId,
+    required String reason,
+  }) async {
+    if (commentOwnerId == _uid) {
+      throw StateError('Users cannot report their own comments.');
+    }
+
     await supabase.from('reports').insert({
       'reporter_id': _uid,
       'comment_id': commentId,
       'reason': reason,
     });
+    await _log('comment_reported', targetId: commentId);
   }
 
   Future<void> _log(String action, {String? targetId}) async {

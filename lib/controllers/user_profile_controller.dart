@@ -58,6 +58,14 @@ class UserProfileController extends ChangeNotifier {
     activityLogs = await _profileRepo.getMyActivityLogs();
   }
 
+  Future<Post?> getPostByIdForActivity(String postId) {
+    return _profileRepo.getPostByIdForActivity(postId);
+  }
+
+  Future<String?> getPostIdForCommentActivity(String commentId) {
+    return _profileRepo.getPostIdForCommentActivity(commentId);
+  }
+
   Future<void> uploadAvatar(File file) async {
     isUploadingAvatar = true;
     notifyListeners();
@@ -65,6 +73,7 @@ class UserProfileController extends ChangeNotifier {
       final url = await _patientRepo.uploadAvatar(file, _uid);
       if (url != null) {
         await _patientRepo.updateAvatar(_uid, url);
+        await _log('avatar_updated', targetType: 'profile');
         patient = await _patientRepo.getPatientById(_uid);
         notifyListeners();
       }
@@ -86,6 +95,7 @@ class UserProfileController extends ChangeNotifier {
       } else {
         // Archiving — move to archivedPosts
         myPosts.removeWhere((p) => p.id == post.id);
+        savedPosts.removeWhere((p) => p.id == post.id);
         await _loadArchivedPosts();
       }
       notifyListeners();
@@ -116,6 +126,7 @@ class UserProfileController extends ChangeNotifier {
       'gender': gender,
       'dob': dob.toIso8601String().split('T').first,
     });
+    await _log('profile_updated', targetType: 'profile');
   }
 
   Future<void> savePersonalization({
@@ -127,6 +138,20 @@ class UserProfileController extends ChangeNotifier {
       'condition': conditions.join(','),
       'fav_animal': favAnimal,
       'fav_activity': favActivity,
+    });
+    await _log('personalization_updated', targetType: 'profile');
+  }
+
+  Future<void> _log(
+    String action, {
+    String? targetType,
+    String? targetId,
+  }) async {
+    await Supabase.instance.client.from('user_activity_logs').insert({
+      'patient_id': _uid,
+      'action': action,
+      if (targetType != null) 'target_type': targetType,
+      if (targetId != null) 'target_id': targetId,
     });
   }
 }

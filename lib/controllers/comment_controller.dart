@@ -16,7 +16,11 @@ class CommentController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addComment(String postId, String content, {String? parentId}) async {
+  Future<void> addComment(
+    String postId,
+    String content, {
+    String? parentId,
+  }) async {
     await _repo.addComment(postId, content, parentId: parentId);
     await loadComments(postId);
   }
@@ -31,7 +35,17 @@ class CommentController extends ChangeNotifier {
     await loadComments(postId);
   }
 
-  Future<void> reportComment(String commentId, String reason) async {
-    await _repo.reportComment(commentId, reason);
+  Future<bool> reportComment(Comment comment, String reason) async {
+    try {
+      await _repo.reportComment(
+        commentId: comment.id,
+        commentOwnerId: comment.patientId,
+        reason: reason,
+      );
+      return true;
+    } catch (e) {
+      debugPrint('reportComment error: $e');
+      return false;
+    }
   }
 }

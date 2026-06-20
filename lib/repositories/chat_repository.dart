@@ -32,6 +32,7 @@ class ChatRepository {
         })
         .select()
         .single();
+    await _log(patientId, 'chat_started', targetId: data['id']);
     return ChatSession.fromMap(data);
   }
 
@@ -97,7 +98,7 @@ class ChatRepository {
         .from('chat_messages')
         .select()
         .eq('session_id', sessionId)
-        .eq('is_hidden', false) 
+        .eq('is_hidden', false)
         .order('created_at', ascending: true);
     return (data as List).map((e) => ChatMessage.fromMap(e)).toList();
   }
@@ -110,5 +111,14 @@ class ChatRepository {
         .eq('session_id', sessionId)
         .order('created_at', ascending: true);
     return (data as List).map((e) => ChatMessage.fromMap(e)).toList();
+  }
+
+  Future<void> _log(String patientId, String action, {String? targetId}) async {
+    await supabase.from('user_activity_logs').insert({
+      'patient_id': patientId,
+      'action': action,
+      'target_type': 'chat',
+      if (targetId != null) 'target_id': targetId,
+    });
   }
 }

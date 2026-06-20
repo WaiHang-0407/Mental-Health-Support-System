@@ -50,6 +50,7 @@ class ProfileRepository {
         )
         .inFilter('id', postIds)
         .eq('is_deleted', false)
+        .eq('is_archived', false)
         .order('created_at', ascending: false);
 
     return _mapPosts(data as List, isSaved: true);
@@ -66,6 +67,29 @@ class ProfileRepository {
     return (data as List).map((e) => UserActivityLog.fromMap(e)).toList();
   }
 
+  Future<Post?> getPostByIdForActivity(String postId) async {
+    final data = await supabase
+        .from('posts')
+        .select(
+          'id, patient_id, content, image_urls, is_deleted, is_archived, created_at, post_likes(count), comments(count)',
+        )
+        .eq('id', postId)
+        .maybeSingle();
+
+    if (data == null) return null;
+    return _mapPosts([data]).first;
+  }
+
+  Future<String?> getPostIdForCommentActivity(String commentId) async {
+    final data = await supabase
+        .from('comments')
+        .select('post_id')
+        .eq('id', commentId)
+        .maybeSingle();
+
+    return data?['post_id'];
+  }
+
   List<Post> _mapPosts(
     List data, {
     bool isLiked = false,
@@ -76,7 +100,7 @@ class ProfileRepository {
       final map = <String, dynamic>{
         // 👈 explicitly type the map
         ...Map<String, dynamic>.from(p), // 👈 cast p to Map<String, dynamic>
-        'author_name': 'You',
+        'author_name': p['patient_id'] == _uid ? 'You' : 'Anonymous',
         'like_count': (p['post_likes'] as List?)?.first?['count'] ?? 0,
         'comment_count': (p['comments'] as List?)?.first?['count'] ?? 0,
       };

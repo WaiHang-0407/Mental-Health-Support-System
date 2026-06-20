@@ -1,4 +1,3 @@
-// models/user_activity_log.dart
 class UserActivityLog {
   final String id;
   final String patientId;
@@ -29,15 +28,44 @@ class UserActivityLog {
 
   String get displayAction {
     switch (action) {
-      case 'post_created': return '📝 Created a post';
-      case 'post_liked': return '❤️ Liked a post';
-      case 'post_saved': return '🔖 Saved a post';
-      case 'post_deleted': return '🗑️ Deleted a post';
-      case 'post_reported': return '🚩 Reported a post';
-      case 'comment_created': return '💬 Commented on a post';
-      case 'activity_registered': return '✅ Registered for an activity';
-      case 'activity_cancelled': return '❌ Cancelled activity registration';
-      default: return action;
+      case 'post_created':
+        return 'You created a post';
+      case 'post_deleted':
+        return 'You deleted a post';
+      case 'post_archived':
+        return 'You archived a post';
+      case 'post_unarchived':
+        return 'You restored a post';
+      case 'post_saved':
+        return 'You saved a post';
+      case 'post_unsaved':
+        return 'You removed a saved post';
+      case 'post_liked':
+        return 'You liked a post';
+      case 'post_reported':
+        return 'You reported a post';
+      case 'comment_created':
+        return 'You commented on a post';
+      case 'comment_replied':
+        return 'You replied to a comment';
+      case 'comment_deleted':
+        return 'You deleted a comment';
+      case 'comment_reported':
+        return 'You reported a comment';
+      case 'activity_registered':
+        return 'You registered for an activity';
+      case 'activity_cancelled':
+        return 'You cancelled an activity registration';
+      case 'profile_updated':
+        return 'You updated your profile';
+      case 'personalization_updated':
+        return 'You updated your preferences';
+      case 'avatar_updated':
+        return 'You changed your profile picture';
+      case 'chat_started':
+        return 'You started an AI companion chat';
+      default:
+        return action.replaceAll('_', ' ');
     }
   }
 }

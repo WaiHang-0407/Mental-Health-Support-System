@@ -5,7 +5,8 @@ import '../repositories/patient_repository.dart';
 class ProfileController {
   final PatientRepository _patientRepo = PatientRepository();
 
-  String? get _userId => Supabase.instance.client.auth.currentUser?.id; // 👈 ? not !
+  String? get _userId =>
+      Supabase.instance.client.auth.currentUser?.id; // 👈 ? not !
 
   Future<void> saveProfile({
     required String name,
@@ -22,6 +23,7 @@ class ProfileController {
       'gender': gender,
       'dob': dob.toIso8601String().split('T').first,
     });
+    await _log(userId, 'profile_updated');
     debugPrint("Profile saved for $userId");
   }
 
@@ -40,6 +42,15 @@ class ProfileController {
       'fav_animal': favAnimal,
       'fav_activity': favActivity,
     });
+    await _log(userId, 'personalization_updated');
     debugPrint("Personalization saved for $userId");
+  }
+
+  Future<void> _log(String userId, String action) async {
+    await Supabase.instance.client.from('user_activity_logs').insert({
+      'patient_id': userId,
+      'action': action,
+      'target_type': 'profile',
+    });
   }
 }
