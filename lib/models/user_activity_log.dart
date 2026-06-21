@@ -1,5 +1,5 @@
 class UserActivityLog {
-  final String id;
+  final String? id;
   final String patientId;
   final String action;
   final String? targetType;
@@ -7,7 +7,7 @@ class UserActivityLog {
   final DateTime createdAt;
 
   UserActivityLog({
-    required this.id,
+    this.id,
     required this.patientId,
     required this.action,
     this.targetType,
@@ -22,8 +22,30 @@ class UserActivityLog {
       action: map['action'],
       targetType: map['target_type'],
       targetId: map['target_id'],
-      createdAt: DateTime.parse(map['created_at']),
+      createdAt: map['created_at'] != null
+          ? DateTime.parse(map['created_at'])
+          : DateTime.now(),
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      if (id != null) 'id': id,
+      'patient_id': patientId,
+      'action': action,
+      if (targetType != null) 'target_type': targetType,
+      if (targetId != null) 'target_id': targetId,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> toCreateMap() {
+    return {
+      'patient_id': patientId,
+      'action': action,
+      if (targetType != null) 'target_type': targetType,
+      if (targetId != null) 'target_id': targetId,
+    };
   }
 
   String get displayAction {

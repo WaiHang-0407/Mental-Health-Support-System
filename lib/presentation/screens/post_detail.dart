@@ -6,6 +6,8 @@ import '../../models/post.dart';
 import '../../models/comment.dart';
 import '../../widgets/gradient_background.dart';
 import '../../widgets/image_viewer.dart';
+import 'profile.dart';
+import 'public_profile.dart';
 
 class PostDetailPage extends StatefulWidget {
   final Post post;
@@ -211,6 +213,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
                           ),
                         ),
                       );
+                      if (reported) {
+                        await _askHideReportedComment(comment);
+                      }
                     },
               child: const Text(
                 'Submit',
@@ -222,6 +227,44 @@ class _PostDetailPageState extends State<PostDetailPage> {
       ),
     );
     otherReasonController.dispose();
+  }
+
+  Future<void> _askHideReportedComment(Comment comment) async {
+    final hide = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2340),
+        title: const Text(
+          'Hide this comment?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'You reported this comment. Do you also want to hide it from this post?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Hide',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (hide == true) {
+      await _commentController.hideComment(comment, widget.post.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Comment hidden from this post')),
+      );
+    }
   }
 
   @override
@@ -363,14 +406,17 @@ class _PostDetailPageState extends State<PostDetailPage> {
       children: [
         Row(
           children: [
-            CircleAvatar(
-              backgroundColor: Colors.white24,
-              radius: 20,
-              child: Text(
-                (post.authorName ?? 'A')[0].toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+            GestureDetector(
+              onTap: () => _openProfile(post.patientId, post.authorName),
+              child: CircleAvatar(
+                backgroundColor: Colors.white24,
+                radius: 20,
+                child: Text(
+                  (post.authorName ?? 'A')[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -378,11 +424,14 @@ class _PostDetailPageState extends State<PostDetailPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  post.authorName ?? 'Anonymous',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
+                GestureDetector(
+                  onTap: () => _openProfile(post.patientId, post.authorName),
+                  child: Text(
+                    post.authorName ?? 'Anonymous',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 Text(
@@ -513,14 +562,20 @@ class _PostDetailPageState extends State<PostDetailPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  backgroundColor: Colors.white24,
-                  radius: 14,
-                  child: Text(
-                    isDeleted
-                        ? '?'
-                        : (comment.authorName ?? 'A')[0].toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                GestureDetector(
+                  onTap: isDeleted
+                      ? null
+                      : () =>
+                            _openProfile(comment.patientId, comment.authorName),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.white24,
+                    radius: 14,
+                    child: Text(
+                      isDeleted
+                          ? '?'
+                          : (comment.authorName ?? 'A')[0].toUpperCase(),
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -529,12 +584,18 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (!isDeleted)
-                        Text(
-                          comment.authorName ?? 'Anonymous',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
+                        GestureDetector(
+                          onTap: () => _openProfile(
+                            comment.patientId,
+                            comment.authorName,
+                          ),
+                          child: Text(
+                            comment.authorName ?? 'Anonymous',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       Text(
@@ -663,6 +724,26 @@ class _PostDetailPageState extends State<PostDetailPage> {
           ),
         ),
       ],
+    );
+  }
+
+  void _openProfile(String patientId, String? fallbackName) {
+    if (patientId == _uid) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ProfilePage()),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublicProfilePage(
+          patientId: patientId,
+          fallbackName: fallbackName ?? 'Anonymous',
+        ),
+      ),
     );
   }
 

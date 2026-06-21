@@ -1,23 +1,30 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/patient.dart';
 import '../models/post.dart';
 import '../models/user_activity_log.dart';
-import '../repositories/patient_repository.dart';
-import '../repositories/profile_repository.dart';
-import '../repositories/post_repository.dart';
+import '../repositories/patient_table_repository.dart';
+import '../repositories/post_table_repository.dart';
+import '../repositories/profile_table_repository.dart';
+import '../repositories/user_activity_logs_table_repository.dart';
 
 class UserProfileController extends ChangeNotifier {
   final PatientRepository _patientRepo = PatientRepository();
   final ProfileRepository _profileRepo = ProfileRepository();
   final PostRepository _postRepo = PostRepository();
+  final UserActivityLogsTableRepository _activityLogsTable =
+      UserActivityLogsTableRepository();
 
   PatientModel? patient;
   List<Post> myPosts = [];
   List<Post> savedPosts = [];
   List<Post> archivedPosts = [];
   List<UserActivityLog> activityLogs = [];
+  int followerCount = 0;
+  int followingCount = 0;
 
   bool isLoading = false;
   bool isUploadingAvatar = false;
@@ -33,6 +40,7 @@ class UserProfileController extends ChangeNotifier {
         _loadSavedPosts(),
         _loadArchivedPosts(),
         _loadActivityLogs(),
+        _loadFollowCounts(),
       ]);
     } catch (e) {
       debugPrint('loadProfile error: $e');
@@ -56,6 +64,11 @@ class UserProfileController extends ChangeNotifier {
 
   Future<void> _loadActivityLogs() async {
     activityLogs = await _profileRepo.getMyActivityLogs();
+  }
+
+  Future<void> _loadFollowCounts() async {
+    followerCount = await _profileRepo.getFollowerCount(_uid);
+    followingCount = await _profileRepo.getFollowingCount(_uid);
   }
 
   Future<Post?> getPostByIdForActivity(String postId) {
@@ -89,11 +102,9 @@ class UserProfileController extends ChangeNotifier {
     try {
       await _postRepo.toggleArchive(post.id, post.isArchived);
       if (post.isArchived) {
-        // Unarchiving — move to myPosts
         archivedPosts.removeWhere((p) => p.id == post.id);
         await _loadMyPosts();
       } else {
-        // Archiving — move to archivedPosts
         myPosts.removeWhere((p) => p.id == post.id);
         savedPosts.removeWhere((p) => p.id == post.id);
         await _loadArchivedPosts();
@@ -115,7 +126,6 @@ class UserProfileController extends ChangeNotifier {
     }
   }
 
-  // Keep old saveProfile for name_query compatibility
   Future<void> saveProfile({
     required String name,
     required String gender,
@@ -147,11 +157,11 @@ class UserProfileController extends ChangeNotifier {
     String? targetType,
     String? targetId,
   }) async {
-    await Supabase.instance.client.from('user_activity_logs').insert({
-      'patient_id': _uid,
-      'action': action,
-      if (targetType != null) 'target_type': targetType,
-      if (targetId != null) 'target_id': targetId,
-    });
+    await _activityLogsTable.insert(
+      patientId: _uid,
+      action: action,
+      targetType: targetType,
+      targetId: targetId,
+    );
   }
 }

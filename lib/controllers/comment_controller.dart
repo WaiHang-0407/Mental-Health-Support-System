@@ -1,7 +1,7 @@
 // controllers/comment_controller.dart
 import 'package:flutter/material.dart';
 import '../models/comment.dart';
-import '../repositories/comment_repository.dart';
+import '../repositories/comment_table_repository.dart';
 
 class CommentController extends ChangeNotifier {
   final CommentRepository _repo = CommentRepository();
@@ -46,6 +46,15 @@ class CommentController extends ChangeNotifier {
     } catch (e) {
       debugPrint('reportComment error: $e');
       return false;
+    }
+  }
+
+  Future<void> hideComment(Comment comment, String postId) async {
+    try {
+      await _repo.hideComment(comment.id);
+      await loadComments(postId);
+    } catch (e) {
+      debugPrint('hideComment error: $e');
     }
   }
 }

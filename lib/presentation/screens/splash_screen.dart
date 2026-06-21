@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../main.dart';
-import '../../repositories/patient_repository.dart';
+import '../../repositories/patient_table_repository.dart';
 import 'home_patient.dart';
 import 'login.dart';
 import 'profile_query.dart';

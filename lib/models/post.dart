@@ -3,9 +3,10 @@ class Post {
   final String id;
   final String patientId;
   final String content;
-  final List<String> imageUrls; // 👈 changed from single to list
+  final List<String> imageUrls;
   final bool isDeleted;
-  final bool isArchived;        // 👈 added
+  final bool isArchived;
+  final String? deletedBy;
   final int likeCount;
   final int commentCount;
   final bool isLiked;
@@ -20,6 +21,7 @@ class Post {
     this.imageUrls = const [],
     this.isDeleted = false,
     this.isArchived = false,
+    this.deletedBy,
     this.likeCount = 0,
     this.commentCount = 0,
     this.isLiked = false,
@@ -28,9 +30,11 @@ class Post {
     required this.createdAt,
   });
 
-  factory Post.fromMap(Map<String, dynamic> map,
-      {bool isLiked = false, bool isSaved = false}) {
-    // image_urls stored as comma-separated string in DB
+  factory Post.fromMap(
+    Map<String, dynamic> map, {
+    bool isLiked = false,
+    bool isSaved = false,
+  }) {
     final rawImages = map['image_urls'];
     List<String> imageUrls = [];
     if (rawImages != null && rawImages.toString().isNotEmpty) {
@@ -44,6 +48,7 @@ class Post {
       imageUrls: imageUrls,
       isDeleted: map['is_deleted'] ?? false,
       isArchived: map['is_archived'] ?? false,
+      deletedBy: map['deleted_by'],
       likeCount: map['like_count'] ?? 0,
       commentCount: map['comment_count'] ?? 0,
       isLiked: isLiked,
@@ -51,5 +56,26 @@ class Post {
       authorName: map['author_name'],
       createdAt: DateTime.parse(map['created_at']),
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'patient_id': patientId,
+      'content': content,
+      'image_urls': imageUrls.join(','),
+      'is_deleted': isDeleted,
+      'is_archived': isArchived,
+      if (deletedBy != null) 'deleted_by': deletedBy,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> toCreateMap() {
+    return {
+      'patient_id': patientId,
+      'content': content,
+      'image_urls': imageUrls.join(','),
+    };
   }
 }

@@ -2,7 +2,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/post.dart';
-import '../repositories/post_repository.dart';
+import '../repositories/post_table_repository.dart';
 
 class PostController extends ChangeNotifier {
   final PostRepository _repo = PostRepository();
@@ -164,6 +164,17 @@ class PostController extends ChangeNotifier {
     } catch (e) {
       debugPrint('reportPost error: $e');
       return false;
+    }
+  }
+
+  Future<void> hidePost(Post post) async {
+    try {
+      await _repo.hidePost(post.id);
+      posts.removeWhere((p) => p.id == post.id);
+      myPosts.removeWhere((p) => p.id == post.id);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('hidePost error: $e');
     }
   }
 }

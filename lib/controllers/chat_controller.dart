@@ -4,8 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/chat_message.dart';
 import '../models/chat_session.dart';
 import '../models/patient.dart';
-import '../repositories/chat_repository.dart';
-import '../repositories/patient_repository.dart';
+import '../repositories/chat_table_repository.dart';
+import '../repositories/patient_table_repository.dart';
 import '../services/gemini_service.dart';
 
 class ChatController extends ChangeNotifier {

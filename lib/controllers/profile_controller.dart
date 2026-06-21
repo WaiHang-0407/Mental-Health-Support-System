@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../repositories/patient_repository.dart';
+
+import '../repositories/patient_table_repository.dart';
+import '../repositories/user_activity_logs_table_repository.dart';
 
 class ProfileController {
   final PatientRepository _patientRepo = PatientRepository();
+  final UserActivityLogsTableRepository _activityLogsTable =
+      UserActivityLogsTableRepository();
 
-  String? get _userId =>
-      Supabase.instance.client.auth.currentUser?.id; // 👈 ? not !
+  String? get _userId => Supabase.instance.client.auth.currentUser?.id;
 
   Future<void> saveProfile({
     required String name,
@@ -47,10 +50,10 @@ class ProfileController {
   }
 
   Future<void> _log(String userId, String action) async {
-    await Supabase.instance.client.from('user_activity_logs').insert({
-      'patient_id': userId,
-      'action': action,
-      'target_type': 'profile',
-    });
+    await _activityLogsTable.insert(
+      patientId: userId,
+      action: action,
+      targetType: 'profile',
+    );
   }
 }

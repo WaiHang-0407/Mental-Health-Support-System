@@ -22,4 +22,22 @@ class ChatSession {
       createdAt: DateTime.parse(map['created_at']),
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'patient_id': patientId,
+      'title': title,
+      if (animal != null) 'animal': animal,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> toCreateMap() {
+    return {
+      'patient_id': patientId,
+      'title': title,
+      if (animal != null) 'animal': animal,
+    };
+  }
 }

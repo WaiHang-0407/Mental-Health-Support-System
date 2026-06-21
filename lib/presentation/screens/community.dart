@@ -10,7 +10,12 @@ import 'post_detail.dart';
 import 'post_create.dart';
 import 'community_activity_detail.dart';
 import 'profile.dart';
+import 'profile_post_list.dart';
+import 'activity_history.dart';
+import 'public_profile.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/auth_service.dart';
+import 'login.dart';
 
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key});
@@ -138,6 +143,9 @@ class _CommunityPageState extends State<CommunityPage>
                           ),
                         ),
                       );
+                      if (reported) {
+                        await _askHideReportedPost(post);
+                      }
                     },
               child: const Text(
                 'Submit',
@@ -149,6 +157,44 @@ class _CommunityPageState extends State<CommunityPage>
       ),
     );
     otherReasonController.dispose();
+  }
+
+  Future<void> _askHideReportedPost(Post post) async {
+    final hide = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2340),
+        title: const Text(
+          'Hide this post?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'You reported this post. Do you also want to hide it from your feed?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Hide',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (hide == true) {
+      await _postController.hidePost(post);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Post hidden from your feed')),
+      );
+    }
   }
 
   Widget _buildProfileIcon() {
@@ -183,6 +229,90 @@ class _CommunityPageState extends State<CommunityPage>
     );
   }
 
+  void _showProfileMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A2340),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 4),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_outline, color: Colors.white70),
+              title: const Text(
+                'View My Profile',
+                style: TextStyle(color: Colors.white70),
+              ),
+              onTap: () => _openMenuPage(const ProfilePage()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.history, color: Colors.white70),
+              title: const Text(
+                'Activity History',
+                style: TextStyle(color: Colors.white70),
+              ),
+              onTap: () => _openMenuPage(const ActivityHistoryPage()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bookmark_border, color: Colors.white70),
+              title: const Text(
+                'Saved Posts',
+                style: TextStyle(color: Colors.white70),
+              ),
+              onTap: () => _openMenuPage(const SavedPostsPage()),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.archive_outlined,
+                color: Colors.white70,
+              ),
+              title: const Text(
+                'Archived Posts',
+                style: TextStyle(color: Colors.white70),
+              ),
+              onTap: () => _openMenuPage(const ArchivedPostsPage()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.redAccent),
+              title: const Text(
+                'Logout',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+              onTap: _logout,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openMenuPage(Widget page) {
+    Navigator.pop(context);
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  Future<void> _logout() async {
+    Navigator.pop(context);
+    await AuthService().signOut();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return GradientBackground(
@@ -198,10 +328,7 @@ class _CommunityPageState extends State<CommunityPage>
           actions: [
             IconButton(
               icon: _buildProfileIcon(), // 👈 profile icon top right
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              ),
+              onPressed: _showProfileMenu,
             ),
           ],
         ),
@@ -379,14 +506,17 @@ class _CommunityPageState extends State<CommunityPage>
               padding: const EdgeInsets.fromLTRB(14, 14, 8, 0),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: Colors.white24,
-                    radius: 18,
-                    child: Text(
-                      (post.authorName ?? 'A')[0].toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                  GestureDetector(
+                    onTap: () => _openPublicProfile(post),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.white24,
+                      radius: 18,
+                      child: Text(
+                        (post.authorName ?? 'A')[0].toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -395,11 +525,14 @@ class _CommunityPageState extends State<CommunityPage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          post.authorName ?? 'Anonymous',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
+                        GestureDetector(
+                          onTap: () => _openPublicProfile(post),
+                          child: Text(
+                            post.authorName ?? 'Anonymous',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         Text(
@@ -458,6 +591,12 @@ class _CommunityPageState extends State<CommunityPage>
                       size: 20,
                     ),
                     onPressed: () => _postController.toggleLike(post),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    padding: EdgeInsets.zero,
                   ),
                   Text(
                     '${post.likeCount}',
@@ -563,6 +702,26 @@ class _CommunityPageState extends State<CommunityPage>
       context,
       MaterialPageRoute(
         builder: (_) => ImageViewer(imageUrls: imageUrls, initialIndex: index),
+      ),
+    );
+  }
+
+  void _openPublicProfile(Post post) {
+    if (post.patientId == _uid) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ProfilePage()),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublicProfilePage(
+          patientId: post.patientId,
+          fallbackName: post.authorName ?? 'Anonymous',
+        ),
       ),
     );
   }

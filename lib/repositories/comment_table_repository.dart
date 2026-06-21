@@ -1,56 +1,59 @@
 // repositories/comment_repository.dart
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/comment.dart';
+import 'comment_likes_table_repository.dart';
+import 'hidden_comments_table_repository.dart';
+import 'patient_table_repository.dart';
+import 'reports_table_repository.dart';
+import 'user_activity_logs_table_repository.dart';
 
 class CommentRepository {
   final supabase = Supabase.instance.client;
+  final _hiddenCommentsTable = HiddenCommentsTableRepository();
+  final _patientRepo = PatientRepository();
+  final _commentLikesTable = CommentLikesTableRepository();
+  final _reportsTable = ReportsTableRepository();
+  final _activityLogsTable = UserActivityLogsTableRepository();
+
   String get _uid => supabase.auth.currentUser!.id;
 
-  // repositories/comment_repository.dart
   Future<List<Comment>> getComments(String postId) async {
-    // Step 1: fetch comments
     final data = await supabase
         .from('comments')
-        .select('''
-        id, post_id, patient_id, parent_id, content, is_deleted, created_at,
-        comment_likes(count)
-      ''')
+        .select(
+          'id, post_id, patient_id, parent_id, content, is_deleted, created_at, comment_likes(count)',
+        )
         .eq('post_id', postId)
         .order('created_at', ascending: true);
 
     if ((data as List).isEmpty) return [];
 
-    // Step 2: get names separately
+    final hidden = await _hiddenCommentsTable.findHiddenCommentIds(_uid);
+    final hiddenIds = hidden.map((h) => h['comment_id']).toSet();
+    data.removeWhere((c) => hiddenIds.contains(c['id']));
+    if (data.isEmpty) return [];
+
     final patientIds = data.map((c) => c['patient_id']).toList();
+    final patientData = await _patientRepo.findNamesByIds(patientIds);
+    final nameMap = {for (final p in patientData) p['id']: p['name']};
 
-    final patientData = await supabase
-        .from('patients')
-        .select('id, name')
-        .inFilter('id', patientIds);
-
-    final nameMap = {for (final p in patientData as List) p['id']: p['name']};
-
-    // Step 3: get liked comment ids
     final commentIds = data.map((c) => c['id']).toList();
-
-    final likes = await supabase
-        .from('comment_likes')
-        .select('comment_id')
-        .eq('patient_id', _uid)
-        .inFilter('comment_id', commentIds);
-
-    final likedIds = (likes as List).map((l) => l['comment_id']).toSet();
+    final likes = await _commentLikesTable.findLikedCommentIds(
+      _uid,
+      commentIds,
+    );
+    final likedIds = likes.map((l) => l['comment_id']).toSet();
 
     final allComments = data.map((c) {
-      final map = {
-        ...c,
+      final map = <String, dynamic>{
+        ...Map<String, dynamic>.from(c),
         'author_name': nameMap[c['patient_id']] ?? 'Anonymous',
         'like_count': (c['comment_likes'] as List?)?.first?['count'] ?? 0,
       };
       return Comment.fromMap(map, isLiked: likedIds.contains(c['id']));
     }).toList();
 
-    // Step 4: nest replies
     final topLevel = allComments.where((c) => c.parentId == null).toList();
     return topLevel.map((c) {
       final replies = allComments.where((r) => r.parentId == c.id).toList();
@@ -69,17 +72,29 @@ class CommentRepository {
     }).toList();
   }
 
+  Future<String?> getPostIdForCommentActivity(String commentId) async {
+    final data = await supabase
+        .from('comments')
+        .select('post_id')
+        .eq('id', commentId)
+        .maybeSingle();
+    return data?['post_id'];
+  }
+
   Future<void> addComment(
     String postId,
     String content, {
     String? parentId,
   }) async {
-    await supabase.from('comments').insert({
-      'post_id': postId,
-      'patient_id': _uid,
-      'content': content,
-      if (parentId != null) 'parent_id': parentId,
-    });
+    final comment = Comment(
+      id: '',
+      postId: postId,
+      patientId: _uid,
+      parentId: parentId,
+      content: content,
+      createdAt: DateTime.now(),
+    );
+    await supabase.from('comments').insert(comment.toCreateMap());
     await _log(
       parentId == null ? 'comment_created' : 'comment_replied',
       targetId: parentId ?? postId,
@@ -96,16 +111,9 @@ class CommentRepository {
 
   Future<void> toggleLike(String commentId, bool isLiked) async {
     if (isLiked) {
-      await supabase
-          .from('comment_likes')
-          .delete()
-          .eq('comment_id', commentId)
-          .eq('patient_id', _uid);
+      await _commentLikesTable.delete(commentId, _uid);
     } else {
-      await supabase.from('comment_likes').insert({
-        'comment_id': commentId,
-        'patient_id': _uid,
-      });
+      await _commentLikesTable.insert(commentId, _uid);
     }
   }
 
@@ -118,20 +126,24 @@ class CommentRepository {
       throw StateError('Users cannot report their own comments.');
     }
 
-    await supabase.from('reports').insert({
-      'reporter_id': _uid,
-      'comment_id': commentId,
-      'reason': reason,
-    });
+    await _reportsTable.insertCommentReport(
+      reporterId: _uid,
+      commentId: commentId,
+      reason: reason,
+    );
     await _log('comment_reported', targetId: commentId);
   }
 
+  Future<void> hideComment(String commentId) async {
+    await _hiddenCommentsTable.upsert(commentId, _uid);
+  }
+
   Future<void> _log(String action, {String? targetId}) async {
-    await supabase.from('user_activity_logs').insert({
-      'patient_id': _uid,
-      'action': action,
-      'target_type': 'comment',
-      if (targetId != null) 'target_id': targetId,
-    });
+    await _activityLogsTable.insert(
+      patientId: _uid,
+      action: action,
+      targetType: 'comment',
+      targetId: targetId,
+    );
   }
 }

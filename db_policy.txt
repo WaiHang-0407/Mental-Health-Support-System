@@ -27,6 +27,10 @@ create policy "Patients can view their own row"
 on patients for select
 using (auth.uid() = id);
 
+create policy "Patients can view public patient profiles"
+on patients for select
+using (auth.role() = 'authenticated');
+
 CREATE POLICY "Users manage own sessions"
 ON chat_sessions FOR ALL USING (auth.uid() = patient_id);
 
@@ -78,6 +82,20 @@ CREATE POLICY "Patients delete own comment likes" ON comment_likes FOR DELETE US
 CREATE POLICY "Patients view own saved" ON saved_posts FOR SELECT USING (auth.uid() = patient_id);
 CREATE POLICY "Patients save posts" ON saved_posts FOR INSERT WITH CHECK (auth.uid() = patient_id);
 CREATE POLICY "Patients unsave posts" ON saved_posts FOR DELETE USING (auth.uid() = patient_id);
+
+-- Hidden posts/comments policies
+CREATE POLICY "Patients view own hidden posts" ON hidden_posts FOR SELECT USING (auth.uid() = patient_id);
+CREATE POLICY "Patients hide posts" ON hidden_posts FOR INSERT WITH CHECK (auth.uid() = patient_id);
+CREATE POLICY "Patients unhide own posts" ON hidden_posts FOR DELETE USING (auth.uid() = patient_id);
+
+CREATE POLICY "Patients view own hidden comments" ON hidden_comments FOR SELECT USING (auth.uid() = patient_id);
+CREATE POLICY "Patients hide comments" ON hidden_comments FOR INSERT WITH CHECK (auth.uid() = patient_id);
+CREATE POLICY "Patients unhide own comments" ON hidden_comments FOR DELETE USING (auth.uid() = patient_id);
+
+-- Follow policies
+CREATE POLICY "Authenticated users can view follows" ON patient_follows FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Patients can follow others" ON patient_follows FOR INSERT WITH CHECK (auth.uid() = follower_id AND follower_id <> following_id);
+CREATE POLICY "Patients can unfollow others" ON patient_follows FOR DELETE USING (auth.uid() = follower_id);
 
 -- Reports
 DROP POLICY IF EXISTS "Patients can report" ON reports;
