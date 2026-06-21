@@ -30,10 +30,13 @@ class ActivityMainPage extends StatelessWidget {
           ],
         ),
         bottomNavigationBar: BottomNavBar(currentIndex: 3),
-        body: const Center(
-          child: Text(
-            "Activity main page",
-            style: TextStyle(color: Colors.white), // contrast with dark gradient
+        body: const MainTabSwipeArea(
+          currentIndex: 3,
+          child: Center(
+            child: Text(
+              "Activity main page",
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ),
       ),

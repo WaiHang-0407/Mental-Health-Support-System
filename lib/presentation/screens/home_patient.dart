@@ -30,10 +30,13 @@ class HomePatientPage extends StatelessWidget {
           ],
         ),
         bottomNavigationBar: BottomNavBar(currentIndex: 0), // 👈 0 = Home
-        body: const Center(
-          child: Text(
-            "Home patient main page",
-            style: TextStyle(color: Colors.white), 
+        body: const MainTabSwipeArea(
+          currentIndex: 0,
+          child: Center(
+            child: Text(
+              "Home patient main page",
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ),
       ),

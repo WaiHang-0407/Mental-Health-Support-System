@@ -276,7 +276,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Image.asset('assets/images/back.png', height: 24, width: 24),
             onPressed: () => Navigator.pop(context),
           ),
           title: const Text(
@@ -542,13 +542,27 @@ class _PostDetailPageState extends State<PostDetailPage> {
             ),
             const SizedBox(width: 4),
             Text(
-              '${post.commentCount}',
+              '${_visibleCommentCount()}',
               style: const TextStyle(color: Colors.white54, fontSize: 13),
             ),
           ],
         ),
       ],
     );
+  }
+
+  int _visibleCommentCount() {
+    int countComment(Comment comment) {
+      if (comment.isDeleted) return 0;
+      return 1 +
+          comment.replies.fold<int>(0, (sum, reply) {
+            return sum + countComment(reply);
+          });
+    }
+
+    return _commentController.comments.fold<int>(0, (sum, comment) {
+      return sum + countComment(comment);
+    });
   }
 
   Widget _buildCommentTile(Comment comment) {

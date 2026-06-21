@@ -53,6 +53,7 @@ class PostRepository {
       _uid,
       postIds: postIds,
     );
+    final visibleCommentCounts = await _getVisibleCommentCounts(postIds);
 
     final likedIds = likes.map((l) => l['post_id']).toSet();
     final savedIds = saves.map((s) => s['post_id']).toSet();
@@ -62,7 +63,7 @@ class PostRepository {
         ...Map<String, dynamic>.from(p),
         'author_name': nameMap[p['patient_id']] ?? 'Anonymous',
         'like_count': (p['post_likes'] as List?)?.first?['count'] ?? 0,
-        'comment_count': (p['comments'] as List?)?.first?['count'] ?? 0,
+        'comment_count': visibleCommentCounts[p['id']] ?? 0,
       };
       return Post.fromMap(
         map,
@@ -79,7 +80,7 @@ class PostRepository {
     final patientData = await _patientRepo.findNameById(_uid);
     final name = patientData?['name'] ?? 'Anonymous';
 
-    return _mapPosts(data, authorName: name);
+    return _mapPostsWithVisibleCommentCounts(data, authorName: name);
   }
 
   Future<List<Post>> getPostsByPatient(
@@ -88,7 +89,7 @@ class PostRepository {
     bool isSaved = false,
   }) async {
     final data = await _getByPatient(patientId, archived: archived);
-    return _mapPosts(
+    return _mapPostsWithVisibleCommentCounts(
       data,
       authorName: patientId == _uid ? 'You' : 'Anonymous',
       isSaved: isSaved,
@@ -109,7 +110,7 @@ class PostRepository {
     if (archived != null) query = query.eq('is_archived', archived);
 
     final data = await query.order('created_at', ascending: false);
-    return _mapPosts(data, isSaved: isSaved);
+    return _mapPostsWithVisibleCommentCounts(data, isSaved: isSaved);
   }
 
   Future<Post?> getPostByIdForActivity(String postId) async {
@@ -119,7 +120,7 @@ class PostRepository {
         .eq('id', postId)
         .maybeSingle();
     if (data == null) return null;
-    return _mapPosts([data]).first;
+    return (await _mapPostsWithVisibleCommentCounts([data])).first;
   }
 
   Future<void> createPost(
@@ -226,21 +227,49 @@ class PostRepository {
     return query.order('created_at', ascending: false);
   }
 
-  List<Post> _mapPosts(
+  Future<List<Post>> _mapPostsWithVisibleCommentCounts(
     List data, {
     String authorName = 'Anonymous',
     bool isLiked = false,
     bool isSaved = false,
-  }) {
+  }) async {
+    final postIds = data.map((p) => p['id']).toList();
+    final visibleCommentCounts = await _getVisibleCommentCounts(postIds);
+
     return data.map((p) {
       final map = <String, dynamic>{
         ...Map<String, dynamic>.from(p),
         'author_name': authorName,
         'like_count': (p['post_likes'] as List?)?.first?['count'] ?? 0,
-        'comment_count': (p['comments'] as List?)?.first?['count'] ?? 0,
+        'comment_count': visibleCommentCounts[p['id']] ?? 0,
       };
       return Post.fromMap(map, isLiked: isLiked, isSaved: isSaved);
     }).toList();
+  }
+
+  Future<Map<String, int>> _getVisibleCommentCounts(List postIds) async {
+    if (postIds.isEmpty) return {};
+
+    final hidden = await supabase
+        .from('hidden_comments')
+        .select('comment_id')
+        .eq('patient_id', _uid);
+    final hiddenIds = (hidden as List).map((h) => h['comment_id']).toSet();
+
+    final comments = await supabase
+        .from('comments')
+        .select('id, post_id')
+        .inFilter('post_id', postIds)
+        .eq('is_deleted', false);
+
+    final counts = <String, int>{};
+    for (final comment in comments as List) {
+      if (hiddenIds.contains(comment['id'])) continue;
+      final postId = comment['post_id'] as String;
+      counts[postId] = (counts[postId] ?? 0) + 1;
+    }
+
+    return counts;
   }
 
   Future<void> _log(String action, {String? targetId}) async {

@@ -39,12 +39,14 @@ class _ImageViewerState extends State<ImageViewer> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
+          icon: Image.asset('assets/images/back.png', height: 24, width: 24),
           onPressed: () => Navigator.pop(context),
         ),
         title: widget.imageUrls.length > 1
-            ? Text('${_currentIndex + 1} / ${widget.imageUrls.length}',
-                style: const TextStyle(color: Colors.white))
+            ? Text(
+                '${_currentIndex + 1} / ${widget.imageUrls.length}',
+                style: const TextStyle(color: Colors.white),
+              )
             : null,
       ),
       body: PageView.builder(
@@ -62,9 +64,13 @@ class _ImageViewerState extends State<ImageViewer> {
               loadingBuilder: (_, child, progress) => progress == null
                   ? child
                   : const Center(
-                      child: CircularProgressIndicator(color: Colors.white)),
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
               errorBuilder: (_, __, ___) => const Icon(
-                  Icons.broken_image, color: Colors.white54, size: 60),
+                Icons.broken_image,
+                color: Colors.white54,
+                size: 60,
+              ),
             ),
           ),
         ),
@@ -84,9 +90,7 @@ class _ImageViewerState extends State<ImageViewer> {
                     width: _currentIndex == i ? 16 : 6,
                     height: 6,
                     decoration: BoxDecoration(
-                      color: _currentIndex == i
-                          ? Colors.white
-                          : Colors.white38,
+                      color: _currentIndex == i ? Colors.white : Colors.white38,
                       borderRadius: BorderRadius.circular(3),
                     ),
                   ),

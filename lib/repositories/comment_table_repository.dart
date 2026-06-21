@@ -25,6 +25,7 @@ class CommentRepository {
           'id, post_id, patient_id, parent_id, content, is_deleted, created_at, comment_likes(count)',
         )
         .eq('post_id', postId)
+        .eq('is_deleted', false)
         .order('created_at', ascending: true);
 
     if ((data as List).isEmpty) return [];
@@ -54,20 +55,40 @@ class CommentRepository {
       return Comment.fromMap(map, isLiked: likedIds.contains(c['id']));
     }).toList();
 
-    final topLevel = allComments.where((c) => c.parentId == null).toList();
-    return topLevel.map((c) {
-      final replies = allComments.where((r) => r.parentId == c.id).toList();
+    final childrenByParent = <String, List<Comment>>{};
+    final loadedCommentIds = allComments.map((c) => c.id).toSet();
+
+    for (final comment in allComments) {
+      final parentId = comment.parentId;
+      if (parentId == null || !loadedCommentIds.contains(parentId)) continue;
+      childrenByParent.putIfAbsent(parentId, () => []).add(comment);
+    }
+
+    List<Comment> flattenReplies(String parentId) {
+      final directReplies = childrenByParent[parentId] ?? [];
+      return directReplies.expand((reply) {
+        return [reply, ...flattenReplies(reply.id)];
+      }).toList();
+    }
+
+    final topLevel = allComments.where((c) {
+      return c.parentId == null || !loadedCommentIds.contains(c.parentId);
+    }).toList();
+
+    return topLevel.map((comment) {
       return Comment(
-        id: c.id,
-        postId: c.postId,
-        patientId: c.patientId,
-        content: c.content,
-        isDeleted: c.isDeleted,
-        likeCount: c.likeCount,
-        isLiked: c.isLiked,
-        authorName: c.authorName,
-        replies: replies,
-        createdAt: c.createdAt,
+        id: comment.id,
+        postId: comment.postId,
+        patientId: comment.patientId,
+        parentId: comment.parentId,
+        content: comment.content,
+        isDeleted: comment.isDeleted,
+        deletedBy: comment.deletedBy,
+        likeCount: comment.likeCount,
+        isLiked: comment.isLiked,
+        authorName: comment.authorName,
+        replies: flattenReplies(comment.id),
+        createdAt: comment.createdAt,
       );
     }).toList();
   }

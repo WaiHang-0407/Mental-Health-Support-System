@@ -345,9 +345,12 @@ class _CommunityPageState extends State<CommunityPage>
           child: const Icon(Icons.add, color: Colors.black87),
         ),
         bottomNavigationBar: const BottomNavBar(currentIndex: 4),
-        body: TabBarView(
-          controller: _tabController,
-          children: [_buildFeed(), _buildActivities()],
+        body: MainTabSwipeArea(
+          currentIndex: 4,
+          child: TabBarView(
+            controller: _tabController,
+            children: [_buildFeed(), _buildActivities()],
+          ),
         ),
       ),
     );

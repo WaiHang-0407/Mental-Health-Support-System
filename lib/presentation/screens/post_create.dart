@@ -39,7 +39,8 @@ class _PostCreatePageState extends State<PostCreatePage> {
   Future<void> _pickImages() async {
     if (_selectedImages.length >= _maxImages) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Maximum $_maxImages images allowed')));
+        SnackBar(content: Text('Maximum $_maxImages images allowed')),
+      );
       return;
     }
     final remaining = _maxImages - _selectedImages.length;
@@ -54,18 +55,24 @@ class _PostCreatePageState extends State<PostCreatePage> {
   Future<void> _submit() async {
     final content = _contentController.text.trim();
     if (content.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please write something')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please write something')));
       return;
     }
     final success = await widget.controller.createPost(
-        content, images: _selectedImages);
+      content,
+      images: _selectedImages,
+    );
     if (success && mounted) {
       Navigator.pop(context);
     } else if (!success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
           content: Text('Failed to post. Please try again.'),
-          backgroundColor: Colors.redAccent));
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
   }
 
@@ -79,22 +86,35 @@ class _PostCreatePageState extends State<PostCreatePage> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
+            icon: Image.asset('assets/images/back.png', height: 24, width: 24),
             onPressed: isSaving ? null : () => Navigator.pop(context),
           ),
-          title: const Text('New Post',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          title: const Text(
+            'New Post',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: TextButton(
                 onPressed: isSaving ? null : _submit,
                 child: isSaving
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Post',
-                        style: TextStyle(color: Colors.white,
-                            fontWeight: FontWeight.bold, fontSize: 16)),
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Post',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -135,22 +155,31 @@ class _PostCreatePageState extends State<PostCreatePage> {
                           margin: const EdgeInsets.only(right: 8),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(10),
-                            child: Image.file(_selectedImages[i],
-                                width: 100, height: 100, fit: BoxFit.cover),
+                            child: Image.file(
+                              _selectedImages[i],
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
                         Positioned(
-                          top: 4, right: 12,
+                          top: 4,
+                          right: 12,
                           child: GestureDetector(
-                            onTap: () => setState(
-                                () => _selectedImages.removeAt(i)),
+                            onTap: () =>
+                                setState(() => _selectedImages.removeAt(i)),
                             child: Container(
                               padding: const EdgeInsets.all(3),
                               decoration: const BoxDecoration(
-                                  color: Colors.black54,
-                                  shape: BoxShape.circle),
-                              child: const Icon(Icons.close,
-                                  color: Colors.white, size: 14),
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 14,
+                              ),
                             ),
                           ),
                         ),
