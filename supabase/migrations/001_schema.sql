@@ -1,12 +1,12 @@
 -- Users table: holds general account info
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY,
   role VARCHAR(50) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- Patients table: holds patient-specific info
-CREATE TABLE patients (
+CREATE TABLE IF NOT EXISTS patients (
   id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   name VARCHAR(100),
   gender VARCHAR(20),
@@ -19,7 +19,7 @@ CREATE TABLE patients (
 );
 
 -- Chat sessions
-CREATE TABLE chat_sessions (
+CREATE TABLE IF NOT EXISTS chat_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
   title TEXT,
@@ -29,7 +29,7 @@ CREATE TABLE chat_sessions (
 );
 
 -- Chat messages
-CREATE TABLE chat_messages (
+CREATE TABLE IF NOT EXISTS chat_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
@@ -41,7 +41,7 @@ CREATE TABLE chat_messages (
 );
 
 -- Posts
-CREATE TABLE posts (
+CREATE TABLE IF NOT EXISTS posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE posts (
 );
 
 -- Comments, supports nested replies through parent_id
-CREATE TABLE comments (
+CREATE TABLE IF NOT EXISTS comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -65,7 +65,7 @@ CREATE TABLE comments (
 );
 
 -- Post likes
-CREATE TABLE post_likes (
+CREATE TABLE IF NOT EXISTS post_likes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -74,7 +74,7 @@ CREATE TABLE post_likes (
 );
 
 -- Comment likes
-CREATE TABLE comment_likes (
+CREATE TABLE IF NOT EXISTS comment_likes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -83,7 +83,7 @@ CREATE TABLE comment_likes (
 );
 
 -- Saved posts
-CREATE TABLE saved_posts (
+CREATE TABLE IF NOT EXISTS saved_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -92,7 +92,7 @@ CREATE TABLE saved_posts (
 );
 
 -- Hidden posts, per patient after reporting or manual hiding
-CREATE TABLE hidden_posts (
+CREATE TABLE IF NOT EXISTS hidden_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -101,7 +101,7 @@ CREATE TABLE hidden_posts (
 );
 
 -- Hidden comments, per patient after reporting or manual hiding
-CREATE TABLE hidden_comments (
+CREATE TABLE IF NOT EXISTS hidden_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -110,7 +110,7 @@ CREATE TABLE hidden_comments (
 );
 
 -- Follow relationships between patients
-CREATE TABLE patient_follows (
+CREATE TABLE IF NOT EXISTS patient_follows (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   follower_id UUID REFERENCES users(id) ON DELETE CASCADE,
   following_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -120,7 +120,7 @@ CREATE TABLE patient_follows (
 );
 
 -- Reports
-CREATE TABLE reports (
+CREATE TABLE IF NOT EXISTS reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   reporter_id UUID REFERENCES users(id) ON DELETE CASCADE,
   post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
@@ -132,7 +132,7 @@ CREATE TABLE reports (
 );
 
 -- Community activities
-CREATE TABLE activities (
+CREATE TABLE IF NOT EXISTS activities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   description TEXT,
@@ -147,7 +147,7 @@ CREATE TABLE activities (
 );
 
 -- Activity registrations
-CREATE TABLE activity_registrations (
+CREATE TABLE IF NOT EXISTS activity_registrations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   activity_id UUID REFERENCES activities(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -157,7 +157,7 @@ CREATE TABLE activity_registrations (
 );
 
 -- Sponsorships
-CREATE TABLE sponsorships (
+CREATE TABLE IF NOT EXISTS sponsorships (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   activity_id UUID REFERENCES activities(id) ON DELETE CASCADE,
   sponsor_name TEXT NOT NULL,
@@ -168,7 +168,7 @@ CREATE TABLE sponsorships (
 );
 
 -- Sponsorship products
-CREATE TABLE sponsorship_products (
+CREATE TABLE IF NOT EXISTS sponsorship_products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sponsorship_id UUID REFERENCES sponsorships(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -180,7 +180,7 @@ CREATE TABLE sponsorship_products (
 );
 
 -- User activity log
-CREATE TABLE user_activity_logs (
+CREATE TABLE IF NOT EXISTS user_activity_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
   action TEXT NOT NULL,
