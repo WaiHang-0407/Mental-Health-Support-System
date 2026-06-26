@@ -9,6 +9,7 @@ import '../../widgets/button_gradient.dart';
 
 import '../../services/auth_service.dart';
 import 'journal_detail.dart';
+import 'weekly_report.dart';
 import 'login.dart';
 
 class JournalMainPage extends StatefulWidget {
@@ -24,6 +25,10 @@ class _JournalMainPageState extends State<JournalMainPage> {
 
   bool _isLoading = true;
   List<JournalModel> _journals = [];
+
+  final Set<String> _selectedJournalIds = {};
+
+  bool get _selectionMode => _selectedJournalIds.isNotEmpty;
 
   @override
   void initState() {
@@ -53,6 +58,13 @@ class _JournalMainPageState extends State<JournalMainPage> {
     }
   }
 
+  void _openWeeklyReport() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const WeeklyReportPage()),
+    );
+  }
+
   Future<void> _logout() async {
     await authService.signOut();
 
@@ -64,7 +76,99 @@ class _JournalMainPageState extends State<JournalMainPage> {
     );
   }
 
+  void _toggleJournalSelection(String journalId) {
+    setState(() {
+      if (_selectedJournalIds.contains(journalId)) {
+        _selectedJournalIds.remove(journalId);
+      } else {
+        _selectedJournalIds.add(journalId);
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedJournalIds.clear();
+    });
+  }
+
+  Future<void> _confirmDeleteSelected() async {
+    final count = _selectedJournalIds.length;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text(
+          'Delete Journals',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to delete $count selected journal(s)?',
+          style: const TextStyle(color: Colors.black),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final error = await _controller.deleteMultipleJournals(
+      _selectedJournalIds.toList(),
+    );
+
+    if (!mounted) return;
+
+    if (error != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+
+    setState(() {
+      _selectedJournalIds.clear();
+      _isLoading = true;
+    });
+
+    await _loadJournals();
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  bool _hasJournalToday() {
+    final today = DateTime.now();
+
+    return _journals.any((journal) {
+      final createdAt = journal.createdAt;
+      if (createdAt == null) return false;
+
+      return _isSameDay(createdAt.toLocal(), today);
+    });
+  }
+
   String _formatDate(DateTime date) {
+    final localDate = date.toLocal();
+
     const months = [
       '',
       'January',
@@ -81,11 +185,28 @@ class _JournalMainPageState extends State<JournalMainPage> {
       'December',
     ];
 
-    return '${date.day} ${months[date.month]}';
+    return '${localDate.day} ${months[localDate.month]}';
   }
 
-  BoxDecoration _buttonDecoration() {
-    return ButtonGradient.decoration();
+  BoxDecoration _buttonDecoration({bool selected = false}) {
+    return BoxDecoration(
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [ButtonGradient.start, ButtonGradient.end],
+      ),
+      borderRadius: BorderRadius.circular(20),
+      border: selected ? Border.all(color: Colors.white, width: 3) : null,
+      boxShadow: selected
+          ? [
+              BoxShadow(
+                color: Colors.white.withOpacity(0.45),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+            ]
+          : null,
+    );
   }
 
   TextStyle get _buttonTitleStyle {
@@ -110,21 +231,32 @@ class _JournalMainPageState extends State<JournalMainPage> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
+          title: _selectionMode
+              ? Text(
+                  '${_selectedJournalIds.length} selected',
+                  style: const TextStyle(color: Colors.white),
+                )
+              : null,
+          leading: _selectionMode
+              ? IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: _clearSelection,
+                )
+              : null,
           actions: [
-            IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
+            if (_selectionMode)
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: _confirmDeleteSelected,
+              )
+            else
+              IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
           ],
         ),
         bottomNavigationBar: BottomNavBar(currentIndex: 1),
-        floatingActionButton: FloatingActionButton(
-          backgroundColor: ButtonGradient.start,
-          onPressed: () => _openJournalDetail(),
-          child: const Icon(Icons.add, color: ButtonGradient.text),
-        ),
-        body: MainTabSwipeArea(
-          currentIndex: 1,
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : ListView(
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
                   padding: const EdgeInsets.fromLTRB(20, 6, 20, 100),
                   children: [
                     const Text(
@@ -136,10 +268,9 @@ class _JournalMainPageState extends State<JournalMainPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
+
                     GestureDetector(
-                      onTap: () {
-                        // TODO: Navigate to Weekly Report page later
-                      },
+                      onTap: _selectionMode ? null : _openWeeklyReport,
                       child: Container(
                         padding: const EdgeInsets.all(20),
                         decoration: _buttonDecoration(),
@@ -155,10 +286,14 @@ class _JournalMainPageState extends State<JournalMainPage> {
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 30),
-                    if (_journals.isEmpty)
+
+                    if (!_hasJournalToday())
                       GestureDetector(
-                        onTap: () => _openJournalDetail(),
+                        onTap: _selectionMode
+                            ? null
+                            : () => _openJournalDetail(),
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 15),
                           padding: const EdgeInsets.all(20),
@@ -176,47 +311,78 @@ class _JournalMainPageState extends State<JournalMainPage> {
                           ),
                         ),
                       ),
-                    ..._journals.map(
-                      (journal) => GestureDetector(
-                        onTap: () => _openJournalDetail(journal: journal),
+
+                    ..._journals.map((journal) {
+                      final isSelected = _selectedJournalIds.contains(
+                        journal.id,
+                      );
+
+                      return GestureDetector(
+                        onLongPress: () => _toggleJournalSelection(journal.id),
+                        onTap: () {
+                          if (_selectionMode) {
+                            _toggleJournalSelection(journal.id);
+                          } else {
+                            _openJournalDetail(journal: journal);
+                          }
+                        },
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 15),
                           padding: const EdgeInsets.all(20),
-                          decoration: _buttonDecoration(),
-                          child: Column(
+                          decoration: _buttonDecoration(selected: isSelected),
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                _formatDate(
-                                  journal.createdAt ?? DateTime.now(),
+                              if (_selectionMode) ...[
+                                Icon(
+                                  isSelected
+                                      ? Icons.check_circle
+                                      : Icons.circle_outlined,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : ButtonGradient.text,
                                 ),
-                                style: _buttonTitleStyle,
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                journal.title?.trim().isNotEmpty == true
-                                    ? journal.title!
-                                    : 'Untitled Journal',
-                                style: _buttonTitleStyle.copyWith(fontSize: 16),
-                              ),
-                              if (journal.emotion != null &&
-                                  journal.emotion!.trim().isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Mood: ${journal.emotion}',
-                                  style: _buttonBodyStyle.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                const SizedBox(width: 12),
                               ],
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _formatDate(
+                                        journal.createdAt ?? DateTime.now(),
+                                      ),
+                                      style: _buttonTitleStyle,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      journal.title?.trim().isNotEmpty == true
+                                          ? journal.title!
+                                          : 'Untitled Journal',
+                                      style: _buttonTitleStyle.copyWith(
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    if (journal.emotion != null &&
+                                        journal.emotion!.trim().isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Mood: ${journal.emotion}',
+                                        style: _buttonBodyStyle.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                   ],
                 ),
-        ),
       ),
     );
   }

@@ -31,11 +31,17 @@ class _CommunityPageState extends State<CommunityPage>
   final CommunityActivityController _activityController =
       CommunityActivityController();
   final String _uid = Supabase.instance.client.auth.currentUser!.id;
+  int _selectedTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_selectedTabIndex != _tabController.index) {
+        setState(() => _selectedTabIndex = _tabController.index);
+      }
+    });
     _postController.loadFeed();
     _postController.addListener(() => setState(() {}));
     _activityController.loadActivities();
@@ -331,26 +337,38 @@ class _CommunityPageState extends State<CommunityPage>
               onPressed: _showProfileMenu,
             ),
           ],
-        ),
-        floatingActionButton: FloatingActionButton(
-          backgroundColor: Colors.white,
-          onPressed: () async {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => PostCreatePage(controller: _postController),
-              ),
-            );
-          },
-          child: const Icon(Icons.add, color: Colors.black87),
-        ),
-        bottomNavigationBar: const BottomNavBar(currentIndex: 4),
-        body: MainTabSwipeArea(
-          currentIndex: 4,
-          child: TabBarView(
+          bottom: TabBar(
             controller: _tabController,
-            children: [_buildFeed(), _buildActivities()],
+            indicatorColor: Colors.white,
+            indicatorWeight: 3,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white54,
+            tabs: const [
+              Tab(text: 'Posts'),
+              Tab(text: 'Activities'),
+            ],
           ),
+        ),
+        floatingActionButton: _selectedTabIndex == 0
+            ? FloatingActionButton(
+                backgroundColor: Colors.white,
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          PostCreatePage(controller: _postController),
+                    ),
+                  );
+                },
+                child: const Icon(Icons.add, color: Colors.black87),
+              )
+            : null,
+        bottomNavigationBar: const BottomNavBar(currentIndex: 4),
+        body: TabBarView(
+          controller: _tabController,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [_buildFeed(), _buildActivities()],
         ),
       ),
     );

@@ -106,6 +106,20 @@ class JournalController {
     }
   }
 
+  Future<String?> deleteMultipleJournals(List<String> journalIds) async {
+    if (journalIds.isEmpty) return 'No journals selected.';
+
+    final userId = currentUserId;
+    if (userId == null) return 'User is not logged in.';
+
+    try {
+      await _journalRepo.deleteJournals(journalIds);
+      return null;
+    } catch (e) {
+      return 'Failed to delete selected journals.';
+    }
+  }
+
   Future<JournalModel?> getJournalById(String journalId) async {
     return await _journalRepo.getJournalById(journalId);
   }

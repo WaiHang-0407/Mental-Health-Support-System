@@ -8,6 +8,35 @@ import '../models/journal.dart';
 class JournalTableRepository {
   final supabase = Supabase.instance.client;
 
+  Future<List<JournalModel>> getJournalsForWeek(String patientId) async {
+    try {
+      final now = DateTime.now();
+
+      final monday = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(Duration(days: now.weekday - 1));
+
+      final nextMonday = monday.add(const Duration(days: 7));
+
+      final data = await supabase
+          .from('journal')
+          .select()
+          .eq('patient_id', patientId)
+          .gte('created_at', monday.toUtc().toIso8601String())
+          .lt('created_at', nextMonday.toUtc().toIso8601String())
+          .order('created_at', ascending: true);
+
+      return (data as List)
+          .map((e) => JournalModel.fromMap(e as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint("Get weekly journals error: $e");
+      return [];
+    }
+  }
+
   Future<List<JournalModel>> getJournals(String patientId) async {
     try {
       final data = await supabase
@@ -54,6 +83,10 @@ class JournalTableRepository {
           'updated_at': DateTime.now().toIso8601String(),
         })
         .eq('id', journalId);
+  }
+
+  Future<void> deleteJournals(List<String> journalIds) async {
+    await supabase.from('journal').delete().inFilter('id', journalIds);
   }
 
   Future<void> deleteJournal(String journalId) async {

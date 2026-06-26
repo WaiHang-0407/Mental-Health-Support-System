@@ -176,9 +176,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
           child: const Icon(Icons.add, color: Colors.black87),
         ),
         bottomNavigationBar: const BottomNavBar(currentIndex: 2),
-        body: MainTabSwipeArea(
-          currentIndex: 2,
-          child: _controller.isLoading
+        body: _controller.isLoading
               ? const Center(child: CircularProgressIndicator())
               : Column(
                   children: [
@@ -381,7 +379,6 @@ class _ChatMainPageState extends State<ChatMainPage> {
                       ),
                   ],
                 ),
-        ),
       ),
     );
   }

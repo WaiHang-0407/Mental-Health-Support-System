@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
     }
 
     const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (typeof reply !== "string" || reply.trim().isEmpty) {
+    if (typeof reply !== "string" || reply.trim().length === 0) {
       return jsonResponse({ error: "Gemini returned an empty reply" }, 502);
     }
 

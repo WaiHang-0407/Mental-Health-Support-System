@@ -11,6 +11,16 @@ class UsersTableRepository {
     return await supabase.from('users').select().eq('id', id).maybeSingle();
   }
 
+  Future<bool> isUserActive(String id) async {
+    final user = await supabase
+        .from('users')
+        .select('is_active')
+        .eq('id', id)
+        .maybeSingle();
+
+    return user != null && user['is_active'] == true;
+  }
+
   Future<void> insertPatientUser(String id) async {
     final user = UserModel(id: id, role: 'patient');
     await supabase.from('users').insert(user.toMap());

@@ -90,7 +90,7 @@ ${journalText}
     }
 
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (typeof text !== "string" || text.trim().isEmpty) {
+    if (typeof text !== "string" || text.trim().length === 0) {
       return jsonResponse({ emotion: "Unknown" });
     }
 

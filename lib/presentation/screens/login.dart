@@ -5,7 +5,9 @@ import '../../widgets/gradient_background.dart';
 // login_page.dart
 class LoginPage extends StatefulWidget {
   // change to StatefulWidget
-  const LoginPage({super.key});
+  final String? message;
+
+  const LoginPage({super.key, this.message});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -18,6 +20,14 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _authController.listenToAuthChanges();
+    if (widget.message != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(widget.message!)),
+        );
+      });
+    }
   }
 
   @override

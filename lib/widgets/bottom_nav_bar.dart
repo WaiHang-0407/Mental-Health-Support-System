@@ -5,39 +5,6 @@ import '../presentation/screens/chat_main.dart';
 import '../presentation/screens/activity_main.dart';
 import '../presentation/screens/community.dart';
 
-class MainTabSwipeArea extends StatelessWidget {
-  final int currentIndex;
-  final Widget child;
-
-  const MainTabSwipeArea({
-    super.key,
-    required this.currentIndex,
-    required this.child,
-  });
-
-  static const _pageCount = 5;
-  static const _minSwipeVelocity = 420.0;
-
-  void _handleSwipe(BuildContext context, DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
-    if (velocity.abs() < _minSwipeVelocity) return;
-
-    final targetIndex = velocity < 0 ? currentIndex + 1 : currentIndex - 1;
-    if (targetIndex < 0 || targetIndex >= _pageCount) return;
-
-    MainTabNavigator.goTo(context, targetIndex, fromIndex: currentIndex);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onHorizontalDragEnd: (details) => _handleSwipe(context, details),
-      child: child,
-    );
-  }
-}
-
 class MainTabNavigator {
   static final List<Widget> _pages = [
     const HomePatientPage(),
@@ -50,26 +17,12 @@ class MainTabNavigator {
   static void goTo(BuildContext context, int index, {required int fromIndex}) {
     if (index == fromIndex) return;
 
-    final beginOffset = index > fromIndex
-        ? const Offset(1, 0)
-        : const Offset(-1, 0);
-
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => _pages[index],
-        transitionDuration: const Duration(milliseconds: 260),
-        reverseTransitionDuration: const Duration(milliseconds: 260),
-        transitionsBuilder: (_, animation, __, child) {
-          final tween = Tween<Offset>(
-            begin: beginOffset,
-            end: Offset.zero,
-          ).chain(CurveTween(curve: Curves.easeOutCubic));
-          return SlideTransition(
-            position: animation.drive(tween),
-            child: child,
-          );
-        },
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
       ),
     );
   }

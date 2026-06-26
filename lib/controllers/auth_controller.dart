@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../repositories/patient_table_repository.dart';
 import '../repositories/users_table_repository.dart';
 import '../services/auth_service.dart';
+import '../presentation/screens/login.dart';
 import '../presentation/screens/home_patient.dart';
 import '../presentation/screens/profile_query.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -41,6 +42,15 @@ class AuthController {
           return; // stop here, patients has FK dependency
         }
 
+        final isActive = await _usersTable.isUserActive(user.id);
+        if (!isActive) {
+          debugPrint("User is deactivated: ${user.id}");
+          await _rejectLogin(
+            'Your account has been deactivated. Please contact support.',
+          );
+          return;
+        }
+
         // Step 2: insert into patients
         final patientInsertError = await _patientRepo.insertPatientIfNotExists(
           user.id,
@@ -64,6 +74,9 @@ class AuthController {
       } catch (e, stack) {
         debugPrint("Auth listener error: $e");
         debugPrint("$stack");
+        await _rejectLogin(
+          'Unable to verify your account status. Please try again later.',
+        );
       }
     }, onError: (e) => debugPrint("Auth stream error: $e"));
   }
@@ -76,6 +89,16 @@ class AuthController {
   Future<void> loginWithGoogle() async => await _authService.signInWithGoogle();
   Future<void> loginWithFacebook() async =>
       await _authService.signInWithFacebook();
+
+  Future<void> _rejectLogin(String message) async {
+    await _authService.signOut();
+    await cancelAuthListener();
+    navigatorKey.currentState?.pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => LoginPage(message: message),
+      ),
+    );
+  }
 
   Future<String?> _insertUserIfNotExists(String id) async {
     try {
