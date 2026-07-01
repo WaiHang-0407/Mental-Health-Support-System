@@ -4,6 +4,7 @@ import '../../models/chat_session.dart';
 import '../../widgets/bottom_nav_bar.dart';
 import '../../widgets/gradient_background.dart';
 import 'chat_ai.dart';
+import 'listener_main.dart';
 
 class ChatMainPage extends StatefulWidget {
   const ChatMainPage({super.key});
@@ -177,93 +178,103 @@ class _ChatMainPageState extends State<ChatMainPage> {
         ),
         bottomNavigationBar: const BottomNavBar(currentIndex: 2),
         body: _controller.isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-                  children: [
-                    // Fav animal quick-start card
-                    if (favAnimal != null)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        child: GestureDetector(
-                          onTap: () => _openSession(favAnimal),
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.25),
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  // Fav animal quick-start card
+                  if (favAnimal != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: GestureDetector(
+                        onTap: () => _openSession(favAnimal),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.25),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Image.asset(
+                                _assetForAnimal(favAnimal),
+                                height: 48,
+                                width: 48,
                               ),
-                            ),
-                            child: Row(
-                              children: [
-                                Image.asset(
-                                  _assetForAnimal(favAnimal),
-                                  height: 48,
-                                  width: 48,
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Text(
-                                            'Mindly ${_labelForAnimal(favAnimal)}',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'Mindly ${_labelForAnimal(favAnimal)}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
                                           ),
-                                          const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.amber.withOpacity(
-                                                0.2,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: const Text(
-                                              '⭐ Fav',
-                                              style: TextStyle(
-                                                color: Colors.amber,
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const Text(
-                                        'Your favourite companion',
-                                        style: TextStyle(
-                                          color: Colors.white60,
-                                          fontSize: 13,
                                         ),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.amber.withOpacity(
+                                              0.2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            '⭐ Fav',
+                                            style: TextStyle(
+                                              color: Colors.amber,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const Text(
+                                      'Your favourite companion',
+                                      style: TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 13,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
-                                const Icon(
-                                  Icons.chevron_right,
-                                  color: Colors.white54,
-                                ),
-                              ],
-                            ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right,
+                                color: Colors.white54,
+                              ),
+                            ],
                           ),
                         ),
                       ),
+                    ),
 
-                    // Listener card
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  // Listener card
+                  // Listener card
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ListenerMainPage(),
+                          ),
+                        );
+                      },
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -299,86 +310,74 @@ class _ChatMainPageState extends State<ChatMainPage> {
                                 ],
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                            const Icon(
+                              Icons.chevron_right,
+                              color: Colors.white38,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Sessions list
+                  if (_controller.sessions.isNotEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Your Companions',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _controller.sessions.length,
+                        itemBuilder: (context, index) {
+                          final session = _controller.sessions[index];
+                          return _buildSessionTile(session);
+                        },
+                      ),
+                    ),
+                  ] else
+                    Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (favAnimal != null)
+                              Image.asset(
+                                _assetForAnimal(favAnimal),
+                                height: 80,
                               ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No conversations yet',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 15,
                               ),
-                              child: const Text(
-                                'Soon',
-                                style: TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 11,
-                                ),
+                            ),
+                            const Text(
+                              'Tap + to start chatting',
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 13,
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-
-                    // Sessions list
-                    if (_controller.sessions.isNotEmpty) ...[
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Your Companions',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: _controller.sessions.length,
-                          itemBuilder: (context, index) {
-                            final session = _controller.sessions[index];
-                            return _buildSessionTile(session);
-                          },
-                        ),
-                      ),
-                    ] else
-                      Expanded(
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (favAnimal != null)
-                                Image.asset(
-                                  _assetForAnimal(favAnimal),
-                                  height: 80,
-                                ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'No conversations yet',
-                                style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              const Text(
-                                'Tap + to start chatting',
-                                style: TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                ],
+              ),
       ),
     );
   }

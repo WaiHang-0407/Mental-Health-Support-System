@@ -56,29 +56,29 @@ class JournalTableRepository {
 
   Future<void> createJournal({
     required String patientId,
-    String? title,
-    required String content,
+    String? titleEncrypted,
+    required String contentEncrypted,
     String? emotion,
   }) async {
     await supabase.from('journal').insert({
       'patient_id': patientId,
-      'title': title,
-      'content': content,
+      'title_encrypted': titleEncrypted,
+      'content_encrypted': contentEncrypted,
       'emotion': emotion,
     });
   }
 
   Future<void> updateJournal({
     required String journalId,
-    String? title,
-    required String content,
+    String? titleEncrypted,
+    required String contentEncrypted,
     String? emotion,
   }) async {
     await supabase
         .from('journal')
         .update({
-          'title': title,
-          'content': content,
+          'title_encrypted': titleEncrypted,
+          'content_encrypted': contentEncrypted,
           'emotion': emotion,
           'updated_at': DateTime.now().toIso8601String(),
         })

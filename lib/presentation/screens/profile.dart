@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../controllers/user_profile_controller.dart';
 import '../../widgets/gradient_background.dart';
+import '../../repositories/user_role_repository.dart';
+import 'listener_dashboard.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -14,12 +16,25 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final UserProfileController _controller = UserProfileController();
   final ImagePicker _picker = ImagePicker();
+  final UserRoleRepository _roleRepo = UserRoleRepository();
 
+  String? _role;
   @override
   void initState() {
     super.initState();
     _controller.loadProfile();
+    _loadRole();
     _controller.addListener(() => setState(() {}));
+  }
+
+  Future<void> _loadRole() async {
+    final role = await _roleRepo.getCurrentUserRole();
+
+    if (!mounted) return;
+
+    setState(() {
+      _role = role;
+    });
   }
 
   @override
@@ -226,28 +241,51 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   _infoTile(Icons.phone_outlined, 'Phone', patient?.phoneno),
                   const SizedBox(height: 18),
+
                   _sectionTitle('Preferences'),
+
                   _infoTile(
                     Icons.health_and_safety_outlined,
                     'Condition',
                     patient?.condition,
                   ),
+
                   _infoTile(
                     Icons.pets_outlined,
                     'Favorite companion',
                     patient?.favAnimal,
                   ),
+
                   _infoTile(
                     Icons.self_improvement_outlined,
                     'Favorite activity',
                     patient?.favActivity,
                   ),
+
                   const SizedBox(height: 18),
+
+                  // NEW
+                  if (_role == 'listener' || _role == 'patient_listener')
+                    _profileAction(
+                      Icons.headset_mic_outlined,
+                      'Switch to Listener Mode',
+                      'Open your listener dashboard.',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ListenerDashboardPage(),
+                          ),
+                        );
+                      },
+                    ),
+
                   _profileAction(
                     Icons.edit_outlined,
                     'Edit Profile',
                     'Update your name, gender, date of birth, and phone.',
                   ),
+
                   _profileAction(
                     Icons.tune_outlined,
                     'Edit Preferences',
@@ -327,39 +365,53 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _profileAction(IconData icon, String title, String subtitle) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.white54, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w600,
+  Widget _profileAction(
+    IconData icon,
+    String title,
+    String subtitle, {
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.white54, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            if (onTap != null)
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white38,
+                size: 16,
+              ),
+          ],
+        ),
       ),
     );
   }

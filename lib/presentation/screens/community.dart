@@ -16,6 +16,8 @@ import 'public_profile.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/auth_service.dart';
 import 'login.dart';
+import '../../repositories/user_role_repository.dart';
+import 'listener_dashboard.dart';
 
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key});
@@ -31,6 +33,7 @@ class _CommunityPageState extends State<CommunityPage>
   final CommunityActivityController _activityController =
       CommunityActivityController();
   final String _uid = Supabase.instance.client.auth.currentUser!.id;
+  final UserRoleRepository _roleRepo = UserRoleRepository();
   int _selectedTabIndex = 0;
 
   @override
@@ -242,64 +245,97 @@ class _CommunityPageState extends State<CommunityPage>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 8, bottom: 4),
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
-              ),
+      builder: (_) => FutureBuilder<String?>(
+        future: _roleRepo.getCurrentUserRole(),
+        builder: (context, snapshot) {
+          final role = snapshot.data;
+          final canUseListenerMode =
+              role == 'listener' || role == 'patient_listener';
+
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 8, bottom: 4),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+
+                if (canUseListenerMode)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.headset_mic_outlined,
+                      color: Colors.lightBlueAccent,
+                    ),
+                    title: const Text(
+                      'Switch to Listener Mode',
+                      style: TextStyle(color: Colors.lightBlueAccent),
+                    ),
+                    onTap: () => _openMenuPage(const ListenerDashboardPage()),
+                  ),
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.person_outline,
+                    color: Colors.white70,
+                  ),
+                  title: const Text(
+                    'View My Profile',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  onTap: () => _openMenuPage(const ProfilePage()),
+                ),
+
+                ListTile(
+                  leading: const Icon(Icons.history, color: Colors.white70),
+                  title: const Text(
+                    'Activity History',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  onTap: () => _openMenuPage(const ActivityHistoryPage()),
+                ),
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.bookmark_border,
+                    color: Colors.white70,
+                  ),
+                  title: const Text(
+                    'Saved Posts',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  onTap: () => _openMenuPage(const SavedPostsPage()),
+                ),
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.archive_outlined,
+                    color: Colors.white70,
+                  ),
+                  title: const Text(
+                    'Archived Posts',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  onTap: () => _openMenuPage(const ArchivedPostsPage()),
+                ),
+
+                ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.redAccent),
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(color: Colors.redAccent),
+                  ),
+                  onTap: _logout,
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.person_outline, color: Colors.white70),
-              title: const Text(
-                'View My Profile',
-                style: TextStyle(color: Colors.white70),
-              ),
-              onTap: () => _openMenuPage(const ProfilePage()),
-            ),
-            ListTile(
-              leading: const Icon(Icons.history, color: Colors.white70),
-              title: const Text(
-                'Activity History',
-                style: TextStyle(color: Colors.white70),
-              ),
-              onTap: () => _openMenuPage(const ActivityHistoryPage()),
-            ),
-            ListTile(
-              leading: const Icon(Icons.bookmark_border, color: Colors.white70),
-              title: const Text(
-                'Saved Posts',
-                style: TextStyle(color: Colors.white70),
-              ),
-              onTap: () => _openMenuPage(const SavedPostsPage()),
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.archive_outlined,
-                color: Colors.white70,
-              ),
-              title: const Text(
-                'Archived Posts',
-                style: TextStyle(color: Colors.white70),
-              ),
-              onTap: () => _openMenuPage(const ArchivedPostsPage()),
-            ),
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.redAccent),
-              title: const Text(
-                'Logout',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-              onTap: _logout,
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

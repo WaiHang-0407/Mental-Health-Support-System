@@ -6,10 +6,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/journal.dart';
 import '../repositories/journal_table_repository.dart';
 import '../services/emotion_analysis.dart';
+import '../services/journal_encryption_service.dart';
 
 class JournalController {
   final JournalTableRepository _journalRepo = JournalTableRepository();
   final EmotionAnalysisService _emotionService = EmotionAnalysisService();
+  final JournalEncryptionService _encryptionService =
+      JournalEncryptionService();
   final supabase = Supabase.instance.client;
 
   String? get currentUserId => supabase.auth.currentUser?.id;
@@ -45,8 +48,10 @@ class JournalController {
 
       await _journalRepo.createJournal(
         patientId: userId,
-        title: title?.trim().isEmpty == true ? null : title?.trim(),
-        content: content.trim(),
+        titleEncrypted: title == null || title.trim().isEmpty
+            ? null
+            : _encryptionService.encryptText(title.trim()),
+        contentEncrypted: _encryptionService.encryptText(content.trim()),
         emotion: emotion ?? 'Unknown',
       );
 
@@ -78,8 +83,10 @@ class JournalController {
 
       await _journalRepo.updateJournal(
         journalId: journalId,
-        title: title?.trim().isEmpty == true ? null : title?.trim(),
-        content: content.trim(),
+        titleEncrypted: title == null || title.trim().isEmpty
+            ? null
+            : _encryptionService.encryptText(title.trim()),
+        contentEncrypted: _encryptionService.encryptText(content.trim()),
         emotion: emotion ?? 'Unknown',
       );
 
