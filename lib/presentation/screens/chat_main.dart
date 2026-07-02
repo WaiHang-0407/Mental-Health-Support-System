@@ -3,6 +3,7 @@ import '../../controllers/chat_controller.dart';
 import '../../models/chat_session.dart';
 import '../../widgets/bottom_nav_bar.dart';
 import '../../widgets/gradient_background.dart';
+import '../../services/subscription_service.dart';
 import 'chat_ai.dart';
 import 'listener_main.dart';
 
@@ -15,6 +16,10 @@ class ChatMainPage extends StatefulWidget {
 
 class _ChatMainPageState extends State<ChatMainPage> {
   final ChatController _controller = ChatController();
+  final SubscriptionService _subscriptionService = SubscriptionService();
+  bool _hasActiveSubscription = false;
+  bool _isCheckingSubscription = true;
+  bool _isStartingCheckout = false;
 
   // All available animals — matches your assets
   final List<String> _allAnimals = [
@@ -31,6 +36,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
     super.initState();
     _controller.loadChatPage();
     _controller.addListener(() => setState(() {}));
+    _loadSubscriptionStatus();
   }
 
   @override
@@ -47,6 +53,120 @@ class _ChatMainPageState extends State<ChatMainPage> {
   String _labelForAnimal(String animal) {
     if (animal == 'guinea-pig') return 'Guinea Pig';
     return animal[0].toUpperCase() + animal.substring(1);
+  }
+
+  Future<void> _loadSubscriptionStatus() async {
+    try {
+      final hasActiveSubscription =
+          await _subscriptionService.hasActiveSubscription();
+      if (!mounted) return;
+      setState(() {
+        _hasActiveSubscription = hasActiveSubscription;
+        _isCheckingSubscription = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _hasActiveSubscription = false;
+        _isCheckingSubscription = false;
+      });
+    }
+  }
+
+  Future<void> _openListenerPage() async {
+    final hasActiveSubscription =
+        await _subscriptionService.hasActiveSubscription();
+    if (!mounted) return;
+
+    setState(() => _hasActiveSubscription = hasActiveSubscription);
+
+    if (!hasActiveSubscription) {
+      _showSubscriptionRequiredSheet();
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ListenerMainPage()),
+    );
+  }
+
+  Future<void> _startSubscriptionCheckout(
+    SubscriptionPaymentProvider provider,
+  ) async {
+    setState(() => _isStartingCheckout = true);
+    try {
+      await _subscriptionService.startCheckout(provider);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to start payment: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isStartingCheckout = false);
+    }
+  }
+
+  void _showSubscriptionRequiredSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A2340),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Mindly Premium Required',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Subscribe to access listener support and premium activities.',
+                style: TextStyle(color: Colors.white60, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _isStartingCheckout
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                        _startSubscriptionCheckout(
+                          SubscriptionPaymentProvider.stripe,
+                        );
+                      },
+                child: const Text('Subscribe with Stripe'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(
+                onPressed: _isStartingCheckout
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                        _startSubscriptionCheckout(
+                          SubscriptionPaymentProvider.paypal,
+                        );
+                      },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
+                ),
+                child: const Text('Subscribe with PayPal'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openSession(String animal) async {
@@ -267,14 +387,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                     child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ListenerMainPage(),
-                          ),
-                        );
-                      },
+                      onTap: _isCheckingSubscription ? null : _openListenerPage,
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -288,11 +401,11 @@ class _ChatMainPageState extends State<ChatMainPage> {
                           children: [
                             const Text('🎧', style: TextStyle(fontSize: 32)),
                             const SizedBox(width: 14),
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'Talk to a Listener',
                                     style: TextStyle(
                                       color: Colors.white,
@@ -301,7 +414,9 @@ class _ChatMainPageState extends State<ChatMainPage> {
                                     ),
                                   ),
                                   Text(
-                                    'Connect with a real person',
+                                    _hasActiveSubscription
+                                        ? 'Premium access active'
+                                        : 'Premium required',
                                     style: TextStyle(
                                       color: Colors.white60,
                                       fontSize: 13,
@@ -310,8 +425,10 @@ class _ChatMainPageState extends State<ChatMainPage> {
                                 ],
                               ),
                             ),
-                            const Icon(
-                              Icons.chevron_right,
+                            Icon(
+                              _hasActiveSubscription
+                                  ? Icons.chevron_right
+                                  : Icons.lock_outline,
                               color: Colors.white38,
                             ),
                           ],

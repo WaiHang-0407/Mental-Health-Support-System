@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'services/payment_deep_link_service.dart';
+import 'services/supabase_service.dart';
 import 'theme/app_theme.dart';
 import 'presentation/screens/splash_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final PaymentDeepLinkService paymentDeepLinkService = PaymentDeepLinkService();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: 'https://fahbbuodrfzmkavxukbp.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhaGJidW9kcmZ6bWthdnh1a2JwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjAzMDYsImV4cCI6MjA5NDkzNjMwNn0.BnjK50HbxpaY-cMyvSMBGtCZRuQSQxE6ZCTfHZuHXSI',
-  );
+  await SupabaseService.initialize();
 
   runApp(Mindly());
+  await paymentDeepLinkService.start(navigatorKey);
 }
 
 class Mindly extends StatelessWidget {

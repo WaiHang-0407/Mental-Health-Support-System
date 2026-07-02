@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../controllers/listener_controller.dart';
 import '../../../models/listener.dart';
+import '../../../services/subscription_service.dart';
 import '../../../widgets/gradient_background.dart';
-import 'listener_chat.dart';
 import 'listener_waiting.dart';
 
 class ListenerMainPage extends StatefulWidget {
@@ -15,8 +15,10 @@ class ListenerMainPage extends StatefulWidget {
 
 class _ListenerMainPageState extends State<ListenerMainPage> {
   final ListenerController _controller = ListenerController();
+  final SubscriptionService _subscriptionService = SubscriptionService();
 
   bool _isLoading = true;
+  bool _hasActiveSubscription = false;
   List<ListenerModel> _listeners = [];
 
   @override
@@ -26,17 +28,41 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
   }
 
   Future<void> _loadListeners() async {
+    final hasActiveSubscription =
+        await _subscriptionService.hasActiveSubscription();
+
+    if (!mounted) return;
+
+    if (!hasActiveSubscription) {
+      setState(() {
+        _hasActiveSubscription = false;
+        _isLoading = false;
+      });
+      return;
+    }
+
     final listeners = await _controller.getAvailableListeners();
 
     if (!mounted) return;
 
     setState(() {
+      _hasActiveSubscription = true;
       _listeners = listeners;
       _isLoading = false;
     });
   }
 
   Future<void> _openListenerChat(ListenerModel listener) async {
+    final hasActiveSubscription =
+        await _subscriptionService.hasActiveSubscription();
+    if (!mounted) return;
+
+    if (!hasActiveSubscription) {
+      setState(() => _hasActiveSubscription = false);
+      _showSubscriptionRequiredMessage();
+      return;
+    }
+
     final confirm = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: const Color(0xFF1A2340),
@@ -124,6 +150,14 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
           listener: listener,
           conversationId: conversationId,
         ),
+      ),
+    );
+  }
+
+  void _showSubscriptionRequiredMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Mindly Premium is required to access listeners.'),
       ),
     );
   }
@@ -242,6 +276,8 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
+            : !_hasActiveSubscription
+            ? _buildLockedState()
             : _listeners.isEmpty
             ? const Center(
                 child: Padding(
@@ -323,6 +359,45 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
                   }),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget _buildLockedState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(26),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_outline, color: Colors.white70, size: 56),
+            const SizedBox(height: 16),
+            const Text(
+              'Mindly Premium Required',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Subscribe before accessing listener support.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white60,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Back to Chat'),
+            ),
+          ],
+        ),
       ),
     );
   }

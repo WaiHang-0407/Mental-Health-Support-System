@@ -5,6 +5,21 @@ allprojects {
     }
 }
 
+subprojects {
+    afterEvaluate {
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+            val javaTaskName = name.replace("Kotlin", "JavaWithJavac")
+            val javaTarget = (tasks.findByName(javaTaskName) as? JavaCompile)
+                ?.targetCompatibility
+                ?: JavaVersion.VERSION_1_8.toString()
+
+            kotlinOptions {
+                jvmTarget = javaTarget
+            }
+        }
+    }
+}
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")
