@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/admin_profile.dart';
 import 'activities.dart';
+import 'activity_paths.dart';
 import 'affirmations.dart';
 import 'sponsorships.dart';
 import 'users.dart';
@@ -10,6 +11,7 @@ enum AdminSection {
   home,
   users,
   reports,
+  activityPaths,
   activities,
   sponsorships,
   affirmations,
@@ -47,6 +49,7 @@ class _HomePageState extends State<HomePage> {
           title: 'Reports',
           subtitle: 'Review reported posts and comments.',
         ),
+      AdminSection.activityPaths => ActivityPathsPage(),
       AdminSection.activities => ActivitiesPage(),
       AdminSection.sponsorships => SponsorshipsPage(),
       AdminSection.affirmations => AffirmationsPage(),
@@ -129,6 +132,12 @@ class _Sidebar extends StatelessWidget {
             label: 'Reports',
             selected: selectedSection == AdminSection.reports,
             onTap: () => onSelectSection(AdminSection.reports),
+          ),
+          _NavItem(
+            icon: Icons.route_outlined,
+            label: 'Activity Path',
+            selected: selectedSection == AdminSection.activityPaths,
+            onTap: () => onSelectSection(AdminSection.activityPaths),
           ),
           _NavItem(
             icon: Icons.event_outlined,

@@ -14,16 +14,27 @@ class CommunityActivitiesRepository {
         .from(DatabaseTables.activities)
         .select(
           'id, title, description, location, event_date, registration_deadline, '
-          'max_participants, is_deleted, is_archived, created_at, '
-          'sponsorships(id, activity_id, sponsor_name, description, is_deleted, '
-          'is_archived, created_at, sponsorship_products(id, sponsorship_id, '
-          'name, description, image_url, is_deleted, is_archived, created_at))',
+          'max_participants, is_deleted, is_archived, created_at',
         )
         .order('created_at', ascending: false);
 
+    final sponsorships = await fetchSponsorships();
+    final sponsorshipsById = {
+      for (final sponsorship in sponsorships) sponsorship.id: sponsorship,
+    };
+    final linksByActivityId = await _sponsorshipIdsByActivityId();
+
     return [
       for (final row in rows.cast<Map<String, dynamic>>())
-        CommunityActivity.fromJson(row),
+        CommunityActivity.fromJson({
+          ...row,
+          'sponsorships': [
+            for (final sponsorshipId
+                in linksByActivityId[row['id'] as String] ?? const <String>[])
+              if (sponsorshipsById[sponsorshipId] != null)
+                _sponsorshipToJson(sponsorshipsById[sponsorshipId]!),
+          ],
+        }),
     ];
   }
 
@@ -37,9 +48,19 @@ class CommunityActivitiesRepository {
         )
         .order('created_at', ascending: false);
 
+    final activityIdsBySponsorshipId = await _activityIdsBySponsorshipId();
+
     return [
       for (final row in rows.cast<Map<String, dynamic>>())
-        ActivitySponsorship.fromJson(row),
+        ActivitySponsorship.fromJson({
+          ...row,
+          'activity_sponsorships': [
+            for (final activityId
+                in activityIdsBySponsorshipId[row['id'] as String] ??
+                    const <String>[])
+              {'activity_id': activityId},
+          ],
+        }),
     ];
   }
 
@@ -60,7 +81,10 @@ class CommunityActivitiesRepository {
     ];
     final patients = await _client
         .from(DatabaseTables.patients)
-        .select('id, name, gender, phoneno')
+        .select(
+          'id, name, gender, dob, phoneno, condition, fav_animal, '
+          'fav_activity, avatar_url',
+        )
         .inFilter('id', patientIds);
 
     final patientRows = patients.cast<Map<String, dynamic>>();
@@ -130,14 +154,44 @@ class CommunityActivitiesRepository {
     ]);
   }
 
+  Future<void> updateSponsorship({
+    required String sponsorshipId,
+    required SponsorshipDraft sponsorship,
+  }) async {
+    await _client.from(DatabaseTables.sponsorships).update({
+      'sponsor_name': sponsorship.sponsorName,
+      'description': sponsorship.description,
+    }).eq('id', sponsorshipId);
+
+    if (sponsorship.products.isEmpty) {
+      return;
+    }
+
+    await _client.from(DatabaseTables.sponsorshipProducts).insert([
+      for (final product in sponsorship.products)
+        {
+          'sponsorship_id': sponsorshipId,
+          'name': product.name,
+          'description': product.description,
+          'image_url': await _productImageUrl(sponsorshipId, product),
+        },
+    ]);
+  }
+
   Future<void> attachSponsorships({
     required String activityId,
     required List<String> sponsorshipIds,
   }) {
-    return _client
-        .from(DatabaseTables.sponsorships)
-        .update({'activity_id': activityId})
-        .inFilter('id', sponsorshipIds);
+    return _client.from(DatabaseTables.activitySponsorships).upsert(
+      [
+        for (final sponsorshipId in sponsorshipIds)
+          {
+            'activity_id': activityId,
+            'sponsorship_id': sponsorshipId,
+          },
+      ],
+      onConflict: 'activity_id,sponsorship_id',
+    );
   }
 
   Future<void> updateActivity({
@@ -164,8 +218,8 @@ class CommunityActivitiesRepository {
     required List<String> sponsorshipIds,
   }) async {
     await _client
-        .from(DatabaseTables.sponsorships)
-        .update({'activity_id': null})
+        .from(DatabaseTables.activitySponsorships)
+        .delete()
         .eq('activity_id', activityId);
 
     if (sponsorshipIds.isEmpty) {
@@ -199,18 +253,12 @@ class CommunityActivitiesRepository {
         .eq('id', activityId);
 
     final sponsorshipIds = await _sponsorshipIdsForActivity(activityId);
-    if (sponsorshipIds.isEmpty) {
-      return;
+    if (sponsorshipIds.isNotEmpty) {
+      await _client
+          .from(DatabaseTables.activitySponsorships)
+          .delete()
+          .eq('activity_id', activityId);
     }
-
-    await _client
-        .from(DatabaseTables.sponsorships)
-        .update({'is_deleted': true, 'is_archived': false})
-        .eq('activity_id', activityId);
-    await _client
-        .from(DatabaseTables.sponsorshipProducts)
-        .update({'is_deleted': true, 'is_archived': false})
-        .inFilter('sponsorship_id', sponsorshipIds);
   }
 
   Future<void> archiveSponsorship(String sponsorshipId) {
@@ -245,6 +293,13 @@ class CommunityActivitiesRepository {
         .eq('id', productId);
   }
 
+  Future<void> unarchiveProduct(String productId) {
+    return _client
+        .from(DatabaseTables.sponsorshipProducts)
+        .update({'is_archived': false})
+        .eq('id', productId);
+  }
+
   Future<void> deleteProduct(String productId) {
     return _client
         .from(DatabaseTables.sponsorshipProducts)
@@ -268,13 +323,70 @@ class CommunityActivitiesRepository {
 
   Future<List<String>> _sponsorshipIdsForActivity(String activityId) async {
     final rows = await _client
-        .from(DatabaseTables.sponsorships)
-        .select('id')
+        .from(DatabaseTables.activitySponsorships)
+        .select('sponsorship_id')
         .eq('activity_id', activityId);
 
     return [
-      for (final row in rows.cast<Map<String, dynamic>>()) row['id'] as String,
+      for (final row in rows.cast<Map<String, dynamic>>())
+        row['sponsorship_id'] as String,
     ];
+  }
+
+  Future<Map<String, List<String>>> _sponsorshipIdsByActivityId() async {
+    final rows = await _client
+        .from(DatabaseTables.activitySponsorships)
+        .select('activity_id, sponsorship_id');
+
+    final result = <String, List<String>>{};
+    for (final row in rows.cast<Map<String, dynamic>>()) {
+      final activityId = row['activity_id'] as String;
+      final sponsorshipId = row['sponsorship_id'] as String;
+      result.putIfAbsent(activityId, () => []).add(sponsorshipId);
+    }
+    return result;
+  }
+
+  Future<Map<String, List<String>>> _activityIdsBySponsorshipId() async {
+    final rows = await _client
+        .from(DatabaseTables.activitySponsorships)
+        .select('activity_id, sponsorship_id');
+
+    final result = <String, List<String>>{};
+    for (final row in rows.cast<Map<String, dynamic>>()) {
+      final sponsorshipId = row['sponsorship_id'] as String;
+      final activityId = row['activity_id'] as String;
+      result.putIfAbsent(sponsorshipId, () => []).add(activityId);
+    }
+    return result;
+  }
+
+  Map<String, dynamic> _sponsorshipToJson(ActivitySponsorship sponsorship) {
+    return {
+      'id': sponsorship.id,
+      'sponsor_name': sponsorship.sponsorName,
+      'description': sponsorship.description,
+      'is_deleted': sponsorship.isDeleted,
+      'is_archived': sponsorship.isArchived,
+      'created_at': sponsorship.createdAt?.toIso8601String(),
+      'activity_sponsorships': [
+        for (final activityId in sponsorship.activityIds)
+          {'activity_id': activityId},
+      ],
+      'sponsorship_products': [
+        for (final product in sponsorship.products)
+          {
+            'id': product.id,
+            'sponsorship_id': product.sponsorshipId,
+            'name': product.name,
+            'description': product.description,
+            'image_url': product.imageUrl,
+            'is_deleted': product.isDeleted,
+            'is_archived': product.isArchived,
+            'created_at': product.createdAt?.toIso8601String(),
+          },
+      ],
+    };
   }
 
   Future<String?> _productImageUrl(

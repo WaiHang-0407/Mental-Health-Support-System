@@ -195,8 +195,10 @@ class UsersController extends ChangeNotifier {
       user.shortId,
       user.role,
       user.isActive ? 'active' : 'deactivated',
+      user.isSubscribed ? 'subscribed active subscription' : 'not subscribed',
       user.gender ?? '',
       _formatDate(user.createdAt),
+      _formatDate(user.subscriptionExpiresAt),
       user.createdAt?.year.toString() ?? '',
     ].join(' ').toLowerCase();
   }

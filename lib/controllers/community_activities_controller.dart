@@ -4,9 +4,11 @@ import '../models/community_activity.dart';
 import '../services/community_activities_service.dart';
 
 enum ActivityStatusFilter {
-  active,
+  open,
+  registrationClosed,
+  completed,
   archived,
-  deleted,
+  cancelled,
 }
 
 class CommunityActivitiesController extends ChangeNotifier {
@@ -37,11 +39,20 @@ class CommunityActivitiesController extends ChangeNotifier {
   List<CommunityActivity> activitiesFor(ActivityStatusFilter filter) {
     return _activities.where((activity) {
       return switch (filter) {
-        ActivityStatusFilter.active =>
-          !activity.isDeleted && !activity.isArchived,
+        ActivityStatusFilter.open =>
+          !activity.isDeleted &&
+              !activity.isArchived &&
+              !activity.isRegistrationClosed &&
+              !activity.isCompleted,
+        ActivityStatusFilter.registrationClosed =>
+          !activity.isDeleted &&
+              !activity.isArchived &&
+              activity.hasLockedRegistration,
+        ActivityStatusFilter.completed =>
+          !activity.isDeleted && !activity.isArchived && activity.isCompleted,
         ActivityStatusFilter.archived =>
           activity.isArchived && !activity.isDeleted,
-        ActivityStatusFilter.deleted => activity.isDeleted,
+        ActivityStatusFilter.cancelled => activity.isDeleted,
       };
     }).toList();
   }
@@ -54,9 +65,7 @@ class CommunityActivitiesController extends ChangeNotifier {
     return _sponsorships
         .where(
           (sponsorship) =>
-              sponsorship.activityId == null &&
-              !sponsorship.isDeleted &&
-              !sponsorship.isArchived,
+              !sponsorship.isDeleted && !sponsorship.isArchived,
         )
         .toList();
   }
@@ -88,9 +97,9 @@ class CommunityActivitiesController extends ChangeNotifier {
     try {
       _activities = await _communityActivitiesService.fetchActivities();
       _sponsorships = await _communityActivitiesService.fetchSponsorships();
-      final activeActivities = activitiesFor(ActivityStatusFilter.active);
-      if (activeActivities.isNotEmpty && _selectedActivityId == null) {
-        _selectedActivityId = activeActivities.first.id;
+      final openActivities = activitiesFor(ActivityStatusFilter.open);
+      if (openActivities.isNotEmpty && _selectedActivityId == null) {
+        _selectedActivityId = openActivities.first.id;
         _participants = await _communityActivitiesService.fetchParticipants(
           _selectedActivityId!,
         );
@@ -155,9 +164,15 @@ class CommunityActivitiesController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final existingActivity = _activities.cast<CommunityActivity?>().firstWhere(
+            (activity) => activity?.id == activityId,
+            orElse: () => null,
+          );
       await _communityActivitiesService.updateActivity(
         activityId: activityId,
         input: input,
+        enforceScheduleRules:
+            existingActivity?.hasLockedRegistration != true,
       );
       await loadActivities();
       _selectedActivityId = activityId;
@@ -192,6 +207,33 @@ class CommunityActivitiesController extends ChangeNotifier {
       return false;
     } catch (_) {
       _errorMessage = 'Unable to add sponsorship.';
+      return false;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> updateSponsorship({
+    required String sponsorshipId,
+    required SponsorshipDraft sponsorship,
+  }) async {
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _communityActivitiesService.updateSponsorship(
+        sponsorshipId: sponsorshipId,
+        sponsorship: sponsorship,
+      );
+      await loadActivities();
+      return true;
+    } on ArgumentError catch (error) {
+      _errorMessage = error.message as String;
+      return false;
+    } catch (_) {
+      _errorMessage = 'Unable to update sponsorship.';
       return false;
     } finally {
       _isSaving = false;
@@ -238,6 +280,12 @@ class CommunityActivitiesController extends ChangeNotifier {
   Future<void> archiveProduct(String productId) async {
     await _runMutation(
       () => _communityActivitiesService.archiveProduct(productId),
+    );
+  }
+
+  Future<void> unarchiveProduct(String productId) async {
+    await _runMutation(
+      () => _communityActivitiesService.unarchiveProduct(productId),
     );
   }
 

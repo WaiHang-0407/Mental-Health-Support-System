@@ -8,6 +8,8 @@ class AdminUser {
     this.gender,
     this.phoneNo,
     this.avatarUrl,
+    this.isSubscribed = false,
+    this.subscriptionExpiresAt,
   });
 
   final String id;
@@ -18,6 +20,8 @@ class AdminUser {
   final String? gender;
   final String? phoneNo;
   final String? avatarUrl;
+  final bool isSubscribed;
+  final DateTime? subscriptionExpiresAt;
 
   String get displayName {
     final value = name?.trim();
@@ -29,6 +33,7 @@ class AdminUser {
   factory AdminUser.fromRows({
     required Map<String, dynamic> user,
     Map<String, dynamic>? patient,
+    Map<String, dynamic>? subscription,
   }) {
     return AdminUser(
       id: user['id'] as String,
@@ -39,6 +44,11 @@ class AdminUser {
       gender: patient?['gender'] as String?,
       phoneNo: patient?['phoneno'] as String?,
       avatarUrl: patient?['avatar_url'] as String?,
+      isSubscribed:
+          subscription == null ? false : _parseBool(subscription['is_active']),
+      subscriptionExpiresAt: DateTime.tryParse(
+        subscription?['expires_at'] as String? ?? '',
+      ),
     );
   }
 

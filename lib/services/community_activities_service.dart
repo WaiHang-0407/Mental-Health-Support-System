@@ -19,7 +19,10 @@ class CommunityActivitiesService {
         .subtract(const Duration(days: 2));
   }
 
-  void validateActivityInput(CreateCommunityActivityInput input) {
+  void validateActivityInput(
+    CreateCommunityActivityInput input, {
+    bool enforceScheduleRules = true,
+  }) {
     if (input.title.trim().isEmpty) {
       throw ArgumentError('Enter the activity title.');
     }
@@ -30,26 +33,33 @@ class CommunityActivitiesService {
       throw ArgumentError('Enter the activity venue.');
     }
 
-    final earliestDate = minimumEventDate();
-    final eventDateOnly = DateTime(
-      input.eventDate.year,
-      input.eventDate.month,
-      input.eventDate.day,
-    );
-    if (eventDateOnly.isBefore(earliestDate)) {
-      throw ArgumentError('Activity date must be at least 10 days from today.');
-    }
-
-    final requiredDeadline = registrationDeadlineFor(input.eventDate);
-    final deadlineOnly = DateTime(
-      input.registrationDeadline.year,
-      input.registrationDeadline.month,
-      input.registrationDeadline.day,
-    );
-    if (deadlineOnly != requiredDeadline) {
-      throw ArgumentError(
-        'Registration deadline must be 2 days before the activity date.',
+    if (enforceScheduleRules) {
+      final earliestDate = minimumEventDate();
+      final eventDateOnly = DateTime(
+        input.eventDate.year,
+        input.eventDate.month,
+        input.eventDate.day,
       );
+      if (eventDateOnly.isBefore(earliestDate)) {
+        throw ArgumentError('Activity date must be at least 10 days from today.');
+      }
+
+      final requiredDeadline = registrationDeadlineFor(input.eventDate);
+      final deadlineOnly = DateTime(
+        input.registrationDeadline.year,
+        input.registrationDeadline.month,
+        input.registrationDeadline.day,
+      );
+      final requiredDeadlineOnly = DateTime(
+        requiredDeadline.year,
+        requiredDeadline.month,
+        requiredDeadline.day,
+      );
+      if (deadlineOnly != requiredDeadlineOnly) {
+        throw ArgumentError(
+          'Registration deadline must be 2 days before the activity date.',
+        );
+      }
     }
   }
 
@@ -90,11 +100,23 @@ class CommunityActivitiesService {
     );
   }
 
+  Future<void> updateSponsorship({
+    required String sponsorshipId,
+    required SponsorshipDraft sponsorship,
+  }) {
+    validateSponsorshipDraft(sponsorship);
+    return _communityActivitiesRepository.updateSponsorship(
+      sponsorshipId: sponsorshipId,
+      sponsorship: sponsorship,
+    );
+  }
+
   Future<void> updateActivity({
     required String activityId,
     required CreateCommunityActivityInput input,
+    bool enforceScheduleRules = true,
   }) {
-    validateActivityInput(input);
+    validateActivityInput(input, enforceScheduleRules: enforceScheduleRules);
     return _communityActivitiesRepository.updateActivity(
       activityId: activityId,
       input: input,
@@ -127,6 +149,10 @@ class CommunityActivitiesService {
 
   Future<void> archiveProduct(String productId) {
     return _communityActivitiesRepository.archiveProduct(productId);
+  }
+
+  Future<void> unarchiveProduct(String productId) {
+    return _communityActivitiesRepository.unarchiveProduct(productId);
   }
 
   Future<void> deleteProduct(String productId) {

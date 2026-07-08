@@ -17,22 +17,33 @@ class ActivitiesPage extends StatefulWidget {
 }
 
 class _ActivitiesPageState extends State<ActivitiesPage> {
-  ActivityStatusFilter _statusFilter = ActivityStatusFilter.active;
+  final _searchController = TextEditingController();
+  ActivityStatusFilter _statusFilter = ActivityStatusFilter.open;
+  _ActivitySortOption _sortOption = _ActivitySortOption.newest;
 
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_handleControllerChanged);
+    _searchController.addListener(_handleSearchChanged);
     widget.controller.loadActivities();
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_handleControllerChanged);
+    _searchController.removeListener(_handleSearchChanged);
+    _searchController.dispose();
     super.dispose();
   }
 
   void _handleControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _handleSearchChanged() {
     if (mounted) {
       setState(() {});
     }
@@ -43,7 +54,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
       _statusFilter = filter;
     });
 
-    final activities = widget.controller.activitiesFor(filter);
+    final activities = _filteredActivities(widget.controller.activitiesFor(filter));
     if (activities.isNotEmpty) {
       widget.controller.selectActivity(activities.first.id);
     } else {
@@ -71,7 +82,9 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
-    final currentActivities = controller.activitiesFor(_statusFilter);
+    final currentActivities = _filteredActivities(
+      controller.activitiesFor(_statusFilter),
+    );
     final selectedActivity = controller.selectedActivity;
     final selectedInCurrentTab = selectedActivity != null &&
         currentActivities.any((activity) => activity.id == selectedActivity.id);
@@ -137,10 +150,28 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
             const SizedBox(height: 22),
             _ActivityStatusTabs(
               selectedFilter: _statusFilter,
-              activeCount: controller.countFor(ActivityStatusFilter.active),
+              openCount: controller.countFor(ActivityStatusFilter.open),
+              registrationClosedCount: controller.countFor(
+                ActivityStatusFilter.registrationClosed,
+              ),
+              completedCount: controller.countFor(
+                ActivityStatusFilter.completed,
+              ),
               archivedCount: controller.countFor(ActivityStatusFilter.archived),
-              deletedCount: controller.countFor(ActivityStatusFilter.deleted),
+              cancelledCount: controller.countFor(
+                ActivityStatusFilter.cancelled,
+              ),
               onSelected: _selectStatusFilter,
+            ),
+            const SizedBox(height: 16),
+            _ActivityListTools(
+              searchController: _searchController,
+              sortOption: _sortOption,
+              onSortChanged: (value) {
+                setState(() {
+                  _sortOption = value;
+                });
+              },
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -151,17 +182,26 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                       children: [
                         Expanded(
                           flex: 3,
-                          child: _ActivitiesList(
-                            controller: controller,
+                          child: _ActivitiesTable(
                             activities: currentActivities,
                             statusFilter: _statusFilter,
-                            onEditActivity: _showEditDialog,
+                            selectedActivityId: controller.selectedActivityId,
+                            onSelected: (activity) =>
+                                controller.selectActivity(activity.id),
                           ),
                         ),
                         const SizedBox(width: 22),
                         Expanded(
                           flex: 2,
-                          child: _ActivityDetails(controller: controller),
+                          child: _ActivityDetails(
+                            controller: controller,
+                            onEdit: _showEditDialog,
+                            onArchive: (activity) => activity.isArchived
+                                ? controller.unarchiveActivity(activity.id)
+                                : controller.archiveActivity(activity.id),
+                            onDelete: (activity) =>
+                                controller.deleteActivity(activity.id),
+                          ),
                         ),
                       ],
                     ),
@@ -171,21 +211,126 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
       ),
     );
   }
+
+  List<CommunityActivity> _filteredActivities(
+    List<CommunityActivity> activities,
+  ) {
+    final query = _searchController.text.trim().toLowerCase();
+    final filtered = activities.where((activity) {
+      if (query.isEmpty) {
+        return true;
+      }
+      return _activitySearchValues(activity).any(
+        (value) => value.toLowerCase().contains(query),
+      );
+    }).toList();
+
+    filtered.sort((left, right) {
+      return switch (_sortOption) {
+        _ActivitySortOption.newest => _compareDateDesc(left.createdAt, right.createdAt),
+        _ActivitySortOption.oldest => _compareDateAsc(left.createdAt, right.createdAt),
+        _ActivitySortOption.titleAsc => left.title.toLowerCase().compareTo(right.title.toLowerCase()),
+        _ActivitySortOption.titleDesc => right.title.toLowerCase().compareTo(left.title.toLowerCase()),
+        _ActivitySortOption.eventSoonest => _compareDateAsc(left.eventDate, right.eventDate),
+        _ActivitySortOption.eventLatest => _compareDateDesc(left.eventDate, right.eventDate),
+      };
+    });
+
+    return filtered;
+  }
+
+  List<String> _activitySearchValues(CommunityActivity activity) {
+    return [
+      activity.title,
+      activity.description ?? '',
+      activity.venue ?? '',
+      activity.status,
+      ...activity.sponsorships.map((sponsorship) => sponsorship.sponsorName),
+    ];
+  }
+}
+
+enum _ActivitySortOption {
+  newest('Newest created'),
+  oldest('Oldest created'),
+  titleAsc('Title A-Z'),
+  titleDesc('Title Z-A'),
+  eventSoonest('Event soonest'),
+  eventLatest('Event latest');
+
+  const _ActivitySortOption(this.label);
+  final String label;
+}
+
+class _ActivityListTools extends StatelessWidget {
+  const _ActivityListTools({
+    required this.searchController,
+    required this.sortOption,
+    required this.onSortChanged,
+  });
+
+  final TextEditingController searchController;
+  final _ActivitySortOption sortOption;
+  final ValueChanged<_ActivitySortOption> onSortChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: searchController,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              labelText: 'Search activities',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 190,
+          child: DropdownButtonFormField<_ActivitySortOption>(
+            initialValue: sortOption,
+            decoration: const InputDecoration(
+              labelText: 'Sort by',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            items: [
+              for (final option in _ActivitySortOption.values)
+                DropdownMenuItem(value: option, child: Text(option.label)),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                onSortChanged(value);
+              }
+            },
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _ActivityStatusTabs extends StatelessWidget {
   const _ActivityStatusTabs({
     required this.selectedFilter,
-    required this.activeCount,
+    required this.openCount,
+    required this.registrationClosedCount,
+    required this.completedCount,
     required this.archivedCount,
-    required this.deletedCount,
+    required this.cancelledCount,
     required this.onSelected,
   });
 
   final ActivityStatusFilter selectedFilter;
-  final int activeCount;
+  final int openCount;
+  final int registrationClosedCount;
+  final int completedCount;
   final int archivedCount;
-  final int deletedCount;
+  final int cancelledCount;
   final ValueChanged<ActivityStatusFilter> onSelected;
 
   @override
@@ -193,9 +338,19 @@ class _ActivityStatusTabs extends StatelessWidget {
     return SegmentedButton<ActivityStatusFilter>(
       segments: [
         ButtonSegment(
-          value: ActivityStatusFilter.active,
+          value: ActivityStatusFilter.open,
           icon: const Icon(Icons.event_available_outlined),
-          label: Text('Active ($activeCount)'),
+          label: Text('Open ($openCount)'),
+        ),
+        ButtonSegment(
+          value: ActivityStatusFilter.registrationClosed,
+          icon: const Icon(Icons.event_busy_outlined),
+          label: Text('Closed ($registrationClosedCount)'),
+        ),
+        ButtonSegment(
+          value: ActivityStatusFilter.completed,
+          icon: const Icon(Icons.task_alt_outlined),
+          label: Text('Completed ($completedCount)'),
         ),
         ButtonSegment(
           value: ActivityStatusFilter.archived,
@@ -203,9 +358,9 @@ class _ActivityStatusTabs extends StatelessWidget {
           label: Text('Archived ($archivedCount)'),
         ),
         ButtonSegment(
-          value: ActivityStatusFilter.deleted,
+          value: ActivityStatusFilter.cancelled,
           icon: const Icon(Icons.delete_outline),
-          label: Text('Deleted ($deletedCount)'),
+          label: Text('Cancelled ($cancelledCount)'),
         ),
       ],
       selected: {selectedFilter},
@@ -214,18 +369,18 @@ class _ActivityStatusTabs extends StatelessWidget {
   }
 }
 
-class _ActivitiesList extends StatelessWidget {
-  const _ActivitiesList({
-    required this.controller,
+class _ActivitiesTable extends StatelessWidget {
+  const _ActivitiesTable({
     required this.activities,
     required this.statusFilter,
-    required this.onEditActivity,
+    required this.selectedActivityId,
+    required this.onSelected,
   });
 
-  final CommunityActivitiesController controller;
   final List<CommunityActivity> activities;
   final ActivityStatusFilter statusFilter;
-  final ValueChanged<CommunityActivity> onEditActivity;
+  final String? selectedActivityId;
+  final ValueChanged<CommunityActivity> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -237,158 +392,117 @@ class _ActivitiesList extends StatelessWidget {
       );
     }
 
-    return ListView.separated(
-      itemCount: activities.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final activity = activities[index];
-        return _ActivityCard(
-          activity: activity,
-          selected: activity.id == controller.selectedActivityId,
-          onSelect: () => controller.selectActivity(activity.id),
-          onEdit: activity.isDeleted ? null : () => onEditActivity(activity),
-          archiveLabel: activity.isArchived ? 'Unarchive' : 'Archive',
-          onArchive: activity.isDeleted
-              ? null
-              : activity.isArchived
-                  ? () => controller.unarchiveActivity(activity.id)
-                  : () => controller.archiveActivity(activity.id),
-          onDelete: activity.isDeleted
-              ? null
-              : () => controller.deleteActivity(activity.id),
-        );
-      },
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(8)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: SingleChildScrollView(
+                child: DataTable(
+                  columnSpacing: 10,
+                  horizontalMargin: 8,
+                  headingRowHeight: 42,
+                  dataRowMinHeight: 46,
+                  dataRowMaxHeight: 46,
+                  showCheckboxColumn: false,
+                  headingTextStyle: const TextStyle(
+                    color: Color(0xFF3A4541),
+                    fontWeight: FontWeight.w800,
+                  ),
+                  columns: const [
+                    DataColumn(label: Text('Title')),
+                    DataColumn(label: Text('Venue')),
+                    DataColumn(label: Text('Event')),
+                    DataColumn(label: Text('Deadline')),
+                    DataColumn(label: Text('Sponsors')),
+                    DataColumn(label: Text('Status')),
+                  ],
+                  rows: [
+                    for (final activity in activities)
+                      DataRow(
+                        selected: activity.id == selectedActivityId,
+                        onSelectChanged: (_) => onSelected(activity),
+                        cells: [
+                          DataCell(
+                            SizedBox(
+                              width: 118,
+                              child: Text(
+                                activity.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: false,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            SizedBox(
+                              width: 96,
+                              child: Text(
+                                activity.venue ?? '-',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: false,
+                              ),
+                            ),
+                          ),
+                          DataCell(Text(_formatDateTime(activity.eventDate))),
+                          DataCell(
+                            Text(
+                              _formatDateTime(activity.registrationDeadline),
+                            ),
+                          ),
+                          DataCell(
+                            Text(activity.sponsorships.length.toString()),
+                          ),
+                          DataCell(_StatusChip(label: activity.status)),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
   String get _emptyMessage {
     return switch (statusFilter) {
-      ActivityStatusFilter.active => 'No active community activities found.',
+      ActivityStatusFilter.open => 'No open community activities found.',
+      ActivityStatusFilter.registrationClosed =>
+        'No registration-closed community activities found.',
+      ActivityStatusFilter.completed =>
+        'No completed community activities found.',
       ActivityStatusFilter.archived => 'No archived community activities found.',
-      ActivityStatusFilter.deleted => 'No deleted community activities found.',
+      ActivityStatusFilter.cancelled =>
+        'No cancelled community activities found.',
     };
   }
 }
 
-class _ActivityCard extends StatelessWidget {
-  const _ActivityCard({
-    required this.activity,
-    required this.selected,
-    required this.onSelect,
+class _ActivityDetails extends StatelessWidget {
+  const _ActivityDetails({
+    required this.controller,
     required this.onEdit,
-    required this.archiveLabel,
     required this.onArchive,
     required this.onDelete,
   });
 
-  final CommunityActivity activity;
-  final bool selected;
-  final VoidCallback onSelect;
-  final VoidCallback? onEdit;
-  final String archiveLabel;
-  final VoidCallback? onArchive;
-  final VoidCallback? onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: selected ? const Color(0xFFE8F3EF) : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(8)),
-        side: BorderSide(
-          color: selected ? const Color(0xFF1F7A64) : const Color(0xFFE8ECEA),
-        ),
-      ),
-      child: InkWell(
-        onTap: onSelect,
-        borderRadius: const BorderRadius.all(Radius.circular(8)),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      activity.title,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF17201D),
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  _StatusChip(label: activity.status),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                activity.description ?? '-',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Color(0xFF66736F)),
-              ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  _InfoPill(icon: Icons.place_outlined, text: activity.venue ?? '-'),
-                  _InfoPill(
-                    icon: Icons.event_outlined,
-                    text: _formatDate(activity.eventDate),
-                  ),
-                  _InfoPill(
-                    icon: Icons.how_to_reg_outlined,
-                    text: _formatDate(activity.registrationDeadline),
-                  ),
-                  _InfoPill(
-                    icon: Icons.volunteer_activism_outlined,
-                    text: '${activity.sponsorships.length} sponsorships',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  TextButton.icon(
-                    onPressed: onEdit,
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Edit'),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: onArchive,
-                    icon: Icon(
-                      activity.isArchived
-                          ? Icons.unarchive_outlined
-                          : Icons.archive_outlined,
-                    ),
-                    label: Text(archiveLabel),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: onDelete,
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Delete'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ActivityDetails extends StatelessWidget {
-  const _ActivityDetails({required this.controller});
-
   final CommunityActivitiesController controller;
+  final ValueChanged<CommunityActivity> onEdit;
+  final ValueChanged<CommunityActivity> onArchive;
+  final ValueChanged<CommunityActivity> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -423,6 +537,67 @@ class _ActivityDetails extends StatelessWidget {
             'Participants: ${controller.participants.length}',
             style: const TextStyle(color: Color(0xFF66736F)),
           ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              TextButton.icon(
+                onPressed: activity.canEdit ? () => onEdit(activity) : null,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Edit'),
+              ),
+              TextButton.icon(
+                onPressed:
+                    activity.isDeleted ? null : () => onArchive(activity),
+                icon: Icon(
+                  activity.isArchived
+                      ? Icons.unarchive_outlined
+                      : Icons.archive_outlined,
+                ),
+                label: Text(activity.isArchived ? 'Unarchive' : 'Archive'),
+              ),
+              TextButton.icon(
+                onPressed: activity.isDeleted ? null : () => onDelete(activity),
+                icon: const Icon(Icons.delete_outline),
+                label: Text(
+                  activity.hasLockedRegistration ? 'Cancel Activity' : 'Delete',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'Activity Details',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 10),
+          _ActivityDetailRow(label: 'Status', value: activity.status),
+          _ActivityDetailRow(
+            label: 'Description',
+            value: activity.description,
+          ),
+          _ActivityDetailRow(label: 'Venue', value: activity.venue),
+          _ActivityDetailRow(
+            label: 'Event date',
+            value: _formatDateTime(activity.eventDate),
+          ),
+          _ActivityDetailRow(
+            label: 'Registration deadline',
+            value: _formatDateTime(activity.registrationDeadline),
+          ),
+          _ActivityDetailRow(
+            label: 'Max participants',
+            value: activity.maxParticipants?.toString(),
+          ),
+          _ActivityDetailRow(
+            label: 'Sponsorships',
+            value: activity.sponsorships.length.toString(),
+          ),
+          _ActivityDetailRow(
+            label: 'Created on',
+            value: _formatDate(activity.createdAt),
+          ),
           const SizedBox(height: 18),
           const Text(
             'Participants',
@@ -433,7 +608,10 @@ class _ActivityDetails extends StatelessWidget {
             const _EmptyPanel(text: 'No participants registered yet.')
           else
             for (final participant in controller.participants)
-              _ParticipantRow(participant: participant),
+              _ParticipantRow(
+                participant: participant,
+                onTap: () => _showParticipantDetails(context, participant),
+              ),
           const SizedBox(height: 22),
           const Text(
             'Sponsorships',
@@ -449,6 +627,16 @@ class _ActivityDetails extends StatelessWidget {
               ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showParticipantDetails(
+    BuildContext context,
+    ActivityParticipant participant,
+  ) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => _ParticipantDetailsDialog(participant: participant),
     );
   }
 }
@@ -495,6 +683,48 @@ class _SponsorshipPanel extends StatelessWidget {
           const SizedBox(height: 8),
           for (final product in sponsorship.products)
             _ProductTile(product: product),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityDetailRow extends StatelessWidget {
+  const _ActivityDetailRow({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String? value;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayValue = value;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 145,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF66736F),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              displayValue == null || displayValue.isEmpty
+                  ? '-'
+                  : displayValue,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
         ],
       ),
     );
@@ -575,6 +805,7 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
   DateTime? _eventDate;
 
   bool get _isEditing => widget.activity != null;
+  bool get _isScheduleLocked => widget.activity?.hasLockedRegistration ?? false;
 
   @override
   void initState() {
@@ -607,18 +838,41 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
   }
 
   Future<void> _pickEventDate() async {
+    if (_isScheduleLocked) {
+      return;
+    }
+
     final minDate = widget.controller.minimumEventDate;
+    final current = _eventDate;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _eventDate ?? minDate,
+      initialDate: current ?? minDate,
       firstDate: minDate,
       lastDate: DateTime.now().add(const Duration(days: 730)),
     );
-    if (picked != null) {
-      setState(() {
-        _eventDate = picked;
-      });
+    if (picked == null || !mounted) {
+      return;
     }
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: current == null
+          ? const TimeOfDay(hour: 9, minute: 0)
+          : TimeOfDay.fromDateTime(current),
+    );
+    if (pickedTime == null) {
+      return;
+    }
+
+    setState(() {
+      _eventDate = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    });
   }
 
   Future<void> _submit() async {
@@ -631,6 +885,9 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
       _showSnack('Select the activity date.');
       return;
     }
+    if (!_validateLockedCapacity()) {
+      return;
+    }
 
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) {
@@ -639,14 +896,24 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
     }
 
     final input = CreateCommunityActivityInput(
-      title: _titleController.text.trim(),
+      title: _isScheduleLocked
+          ? widget.activity!.title
+          : _titleController.text.trim(),
       description: _descriptionController.text.trim(),
       venue: _venueController.text.trim(),
-      eventDate: eventDate,
-      registrationDeadline: widget.controller.registrationDeadlineFor(eventDate),
+      eventDate: _isScheduleLocked
+          ? widget.activity!.eventDate ?? eventDate
+          : eventDate,
+      registrationDeadline: _isScheduleLocked
+          ? widget.activity!.registrationDeadline ??
+              widget.controller.registrationDeadlineFor(eventDate)
+          : widget.controller.registrationDeadlineFor(eventDate),
       createdBy: userId,
-      maxParticipants: int.tryParse(_maxParticipantsController.text.trim()),
-      sponsorshipIds: _selectedSponsorshipIds.toList(),
+      maxParticipants: _maxParticipantsForSubmit(),
+      sponsorshipIds: _isScheduleLocked
+          ? widget.activity?.sponsorships.map((sponsorship) => sponsorship.id).toList() ??
+              const []
+          : _selectedSponsorshipIds.toList(),
     );
     final activity = widget.activity;
     final success = activity == null
@@ -665,6 +932,36 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  bool _validateLockedCapacity() {
+    if (!_isScheduleLocked) {
+      return true;
+    }
+
+    final current = widget.activity?.maxParticipants;
+    final updated = int.tryParse(_maxParticipantsController.text.trim());
+    if (current != null && updated != null && updated < current) {
+      _showSnack('Capacity can only be increased after registration closes.');
+      return false;
+    }
+    return true;
+  }
+
+  int? _maxParticipantsForSubmit() {
+    final updated = int.tryParse(_maxParticipantsController.text.trim());
+    if (!_isScheduleLocked) {
+      return updated;
+    }
+
+    final current = widget.activity?.maxParticipants;
+    if (current == null) {
+      return updated;
+    }
+    if (updated == null) {
+      return current;
+    }
+    return updated < current ? current : updated;
+  }
+
   @override
   Widget build(BuildContext context) {
     final eventDate = _eventDate;
@@ -674,7 +971,7 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
 
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760, maxHeight: 760),
+        constraints: const BoxConstraints(maxWidth: 920, maxHeight: 780),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Form(
@@ -690,109 +987,181 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Activity date must be at least 10 days from today. Registration deadline is fixed 2 days before.',
+                  _isScheduleLocked
+                      ? 'Registration is closed. Only description, venue, and increased capacity can be changed.'
+                      : 'Activity date must be at least 10 days from today. Registration deadline is fixed 2 days before.',
                   style: TextStyle(color: Colors.grey.shade700),
                 ),
                 const SizedBox(height: 18),
                 Expanded(
-                  child: ListView(
-                    children: [
-                      TextFormField(
-                        controller: _titleController,
-                        decoration: const InputDecoration(
-                          labelText: 'Title',
-                          border: OutlineInputBorder(),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final twoColumns = constraints.maxWidth >= 760;
+                      final detailsSection = _ActivityFormSection(
+                        icon: Icons.edit_note_outlined,
+                        title: 'Details',
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _titleController,
+                              enabled: !_isScheduleLocked,
+                              decoration: const InputDecoration(
+                                labelText: 'Title',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              validator: _required,
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _descriptionController,
+                              decoration: const InputDecoration(
+                                labelText: 'Description',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              minLines: 5,
+                              maxLines: 7,
+                              validator: _required,
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _venueController,
+                              decoration: const InputDecoration(
+                                labelText: 'Venue',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              validator: _required,
+                            ),
+                          ],
                         ),
-                        validator: _required,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _descriptionController,
-                        decoration: const InputDecoration(
-                          labelText: 'Description',
-                          border: OutlineInputBorder(),
-                        ),
-                        minLines: 3,
-                        maxLines: 4,
-                        validator: _required,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _venueController,
-                        decoration: const InputDecoration(
-                          labelText: 'Venue',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: _required,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _pickEventDate,
-                              icon: const Icon(Icons.event_outlined),
+                      );
+
+                      final scheduleSection = _ActivityFormSection(
+                        icon: Icons.event_outlined,
+                        title: 'Schedule',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed:
+                                  _isScheduleLocked ? null : _pickEventDate,
+                              icon: const Icon(Icons.calendar_month_outlined),
                               label: Text(
                                 eventDate == null
-                                    ? 'Select activity date'
-                                    : 'Activity: ${_formatDate(eventDate)}',
+                                    ? 'Select activity date and time'
+                                    : _formatDateTime(eventDate),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              registrationDeadline == null
-                                  ? 'Registration deadline: -'
-                                  : 'Registration deadline: ${_formatDate(registrationDeadline)}',
-                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            const SizedBox(height: 12),
+                            _DeadlineSummary(
+                              value: registrationDeadline == null
+                                  ? '-'
+                                  : _formatDateTime(registrationDeadline),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _maxParticipantsController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Max participants',
-                          border: OutlineInputBorder(),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Sponsorships',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 10),
-                      if (_selectableSponsorships.isEmpty)
-                        const _EmptyPanel(
-                          text:
-                              'No available sponsorships. Add sponsorships from the Sponsorships page first.',
-                        )
-                      else
-                        for (final sponsorship in _selectableSponsorships)
-                          CheckboxListTile(
-                            value: _selectedSponsorshipIds.contains(
-                              sponsorship.id,
-                            ),
-                            onChanged: (selected) {
-                              setState(() {
-                                if (selected == true) {
-                                  _selectedSponsorshipIds.add(sponsorship.id);
-                                } else {
-                                  _selectedSponsorshipIds.remove(sponsorship.id);
-                                }
-                              });
-                            },
-                            title: Text(sponsorship.sponsorName),
-                            subtitle: Text(
-                              _sponsorshipSubtitle(sponsorship),
-                              style: const TextStyle(color: Color(0xFF66736F)),
-                            ),
-                            controlAffinity: ListTileControlAffinity.leading,
+                      );
+
+                      final capacitySection = _ActivityFormSection(
+                        icon: Icons.people_alt_outlined,
+                        title: 'Capacity',
+                        child: TextFormField(
+                          controller: _maxParticipantsController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Max participants',
+                            border: OutlineInputBorder(),
+                            isDense: true,
                           ),
-                    ],
+                        ),
+                      );
+
+                      final sponsorshipSection = _ActivityFormSection(
+                        icon: Icons.volunteer_activism_outlined,
+                        title: 'Sponsorships',
+                        child: _selectableSponsorships.isEmpty
+                            ? const _EmptyPanel(
+                                text:
+                                    'No available sponsorships. Add sponsorships from the Sponsorships page first.',
+                              )
+                            : Column(
+                                children: [
+                                  for (final sponsorship
+                                      in _selectableSponsorships)
+                                    CheckboxListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      value: _selectedSponsorshipIds.contains(
+                                        sponsorship.id,
+                                      ),
+                                      onChanged: _isScheduleLocked
+                                          ? null
+                                          : (selected) {
+                                              setState(() {
+                                                if (selected == true) {
+                                                  _selectedSponsorshipIds.add(
+                                                    sponsorship.id,
+                                                  );
+                                                } else {
+                                                  _selectedSponsorshipIds.remove(
+                                                    sponsorship.id,
+                                                  );
+                                                }
+                                              });
+                                            },
+                                      title: Text(
+                                        sponsorship.sponsorName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(
+                                        _sponsorshipSubtitle(sponsorship),
+                                        style: const TextStyle(
+                                          color: Color(0xFF66736F),
+                                        ),
+                                      ),
+                                      controlAffinity:
+                                          ListTileControlAffinity.leading,
+                                    ),
+                                ],
+                              ),
+                      );
+
+                      final content = twoColumns
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: detailsSection),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      scheduleSection,
+                                      const SizedBox(height: 14),
+                                      capacitySection,
+                                      const SizedBox(height: 14),
+                                      sponsorshipSection,
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              children: [
+                                detailsSection,
+                                const SizedBox(height: 14),
+                                scheduleSection,
+                                const SizedBox(height: 14),
+                                capacitySection,
+                                const SizedBox(height: 14),
+                                sponsorshipSection,
+                              ],
+                            );
+
+                      return ListView(children: [content]);
+                    },
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -843,20 +1212,113 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
   }
 
   String _sponsorshipSubtitle(ActivitySponsorship sponsorship) {
-    final assigned = sponsorship.activityId != null;
-    final assignmentLabel = assigned ? 'Assigned to this activity' : 'Available';
+    final assignmentCount = sponsorship.activityIds.length;
+    final assignmentLabel =
+        assignmentCount == 1 ? 'Used by 1 activity' : 'Used by $assignmentCount activities';
     return '$assignmentLabel | ${sponsorship.products.length} products';
   }
 }
 
+class _ActivityFormSection extends StatelessWidget {
+  const _ActivityFormSection({
+    required this.icon,
+    required this.title,
+    required this.child,
+  });
+
+  final IconData icon;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F7F8),
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
+        border: Border.all(color: const Color(0xFFE8ECEA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 19, color: const Color(0xFF1F7A64)),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFF17201D),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _DeadlineSummary extends StatelessWidget {
+  const _DeadlineSummary({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
+        border: Border.all(color: const Color(0xFFE8ECEA)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.lock_clock_outlined,
+            size: 18,
+            color: Color(0xFF66736F),
+          ),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Registration deadline',
+              style: TextStyle(
+                color: Color(0xFF66736F),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ParticipantRow extends StatelessWidget {
-  const _ParticipantRow({required this.participant});
+  const _ParticipantRow({
+    required this.participant,
+    required this.onTap,
+  });
 
   final ActivityParticipant participant;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      onTap: onTap,
       contentPadding: EdgeInsets.zero,
       leading: const CircleAvatar(
         backgroundColor: Color(0xFFBFE8D8),
@@ -870,36 +1332,143 @@ class _ParticipantRow extends StatelessWidget {
           participant.isCancelled ? 'Cancelled' : 'Registered',
         ].join(' | '),
       ),
+      trailing: const Icon(Icons.chevron_right, size: 20),
     );
   }
 }
 
-class _InfoPill extends StatelessWidget {
-  const _InfoPill({
-    required this.icon,
-    required this.text,
-  });
+class _ParticipantDetailsDialog extends StatelessWidget {
+  const _ParticipantDetailsDialog({required this.participant});
 
-  final IconData icon;
-  final String text;
+  final ActivityParticipant participant;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF0F4F2),
-        borderRadius: BorderRadius.all(Radius.circular(8)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        child: Row(
+    final avatarUrl = participant.avatarUrl;
+
+    return AlertDialog(
+      title: const Text('Participant Details'),
+      content: SizedBox(
+        width: 520,
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 17, color: const Color(0xFF1F7A64)),
-            const SizedBox(width: 6),
-            Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: const Color(0xFFBFE8D8),
+                  backgroundImage: avatarUrl == null || avatarUrl.isEmpty
+                      ? null
+                      : NetworkImage(avatarUrl),
+                  child: avatarUrl == null || avatarUrl.isEmpty
+                      ? const Icon(
+                          Icons.person_outline,
+                          color: Color(0xFF14211D),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        participant.name ?? 'Unnamed patient',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      _StatusChip(
+                        label: participant.isCancelled
+                            ? 'Cancelled'
+                            : 'Registered',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            _ParticipantDetailRow(
+              label: 'Patient ID',
+              value: participant.patientId,
+            ),
+            _ParticipantDetailRow(label: 'Gender', value: participant.gender),
+            _ParticipantDetailRow(
+              label: 'Date of birth',
+              value: _formatDate(participant.dob),
+            ),
+            _ParticipantDetailRow(label: 'Phone', value: participant.phoneNo),
+            _ParticipantDetailRow(
+              label: 'Condition',
+              value: participant.condition,
+            ),
+            _ParticipantDetailRow(
+              label: 'Favorite animal',
+              value: participant.favAnimal,
+            ),
+            _ParticipantDetailRow(
+              label: 'Favorite activity',
+              value: participant.favActivity,
+            ),
+            _ParticipantDetailRow(
+              label: 'Registered on',
+              value: _formatDate(participant.createdAt),
+            ),
           ],
         ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ParticipantDetailRow extends StatelessWidget {
+  const _ParticipantDetailRow({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String? value;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayValue = value;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF66736F),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              displayValue == null || displayValue.isEmpty
+                  ? '-'
+                  : displayValue,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -912,10 +1481,35 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final active = label == 'Active';
+    final colors = switch (label) {
+      'Active' => (
+          background: const Color(0xFFE8F3EF),
+          foreground: const Color(0xFF1F7A64),
+        ),
+      'Registration Closed' => (
+          background: const Color(0xFFFFF3D6),
+          foreground: const Color(0xFF8A5A00),
+        ),
+      'Completed' => (
+          background: const Color(0xFFE8EEF7),
+          foreground: const Color(0xFF2F5D9B),
+        ),
+      'Archived' => (
+          background: const Color(0xFFF0F4F2),
+          foreground: const Color(0xFF66736F),
+        ),
+      'Cancelled' || 'Deleted' => (
+          background: const Color(0xFFF4EDEA),
+          foreground: const Color(0xFF8A4B38),
+        ),
+      _ => (
+          background: const Color(0xFFF0F4F2),
+          foreground: const Color(0xFF66736F),
+        ),
+    };
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: active ? const Color(0xFFE8F3EF) : const Color(0xFFF4EDEA),
+        color: colors.background,
         borderRadius: const BorderRadius.all(Radius.circular(8)),
       ),
       child: Padding(
@@ -923,7 +1517,7 @@ class _StatusChip extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            color: active ? const Color(0xFF1F7A64) : const Color(0xFF8A4B38),
+            color: colors.foreground,
             fontSize: 12,
             fontWeight: FontWeight.w800,
           ),
@@ -962,4 +1556,30 @@ String _formatDate(DateTime? value) {
   final day = value.day.toString().padLeft(2, '0');
   final month = value.month.toString().padLeft(2, '0');
   return '$day/$month/${value.year}';
+}
+
+String _formatDateTime(DateTime? value) {
+  if (value == null) {
+    return '-';
+  }
+  final hour = value.hour.toString().padLeft(2, '0');
+  final minute = value.minute.toString().padLeft(2, '0');
+  return '${_formatDate(value)} $hour:$minute';
+}
+
+int _compareDateAsc(DateTime? left, DateTime? right) {
+  if (left == null && right == null) {
+    return 0;
+  }
+  if (left == null) {
+    return 1;
+  }
+  if (right == null) {
+    return -1;
+  }
+  return left.compareTo(right);
+}
+
+int _compareDateDesc(DateTime? left, DateTime? right) {
+  return _compareDateAsc(right, left);
 }

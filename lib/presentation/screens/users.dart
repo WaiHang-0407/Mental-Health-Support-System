@@ -152,7 +152,7 @@ class _UsersFilters extends StatelessWidget {
             controller: searchController,
             onChanged: controller.updateSearchQuery,
             decoration: InputDecoration(
-              hintText: 'Search name, ID, status, role, gender, or joined date',
+              hintText: 'Search name, ID, status, role, gender, subscription, or date',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: controller.searchQuery.trim().isEmpty
                   ? null
@@ -393,7 +393,7 @@ class _UsersTableHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: const BoxDecoration(
         color: Color(0xFFF0F4F2),
         borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
@@ -404,9 +404,11 @@ class _UsersTableHeader extends StatelessWidget {
           Expanded(flex: 2, child: _HeaderText('Status')),
           Expanded(flex: 2, child: _HeaderText('Role')),
           Expanded(flex: 2, child: _HeaderText('Gender')),
-          Expanded(flex: 2, child: _HeaderText('Phone')),
+          Expanded(flex: 3, child: _HeaderText('Phone')),
           Expanded(flex: 2, child: _HeaderText('Joined')),
-          SizedBox(width: 130, child: _HeaderText('Action')),
+          Expanded(flex: 2, child: _HeaderText('Subscribed')),
+          Expanded(flex: 2, child: _HeaderText('Until')),
+          SizedBox(width: 112, child: _HeaderText('Action')),
         ],
       ),
     );
@@ -445,9 +447,9 @@ class _UserRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 72,
+      height: 64,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: [
             Expanded(
@@ -455,7 +457,7 @@ class _UserRow extends StatelessWidget {
               child: Row(
                 children: [
                   _UserAvatar(user: user),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -466,6 +468,7 @@ class _UserRow extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Color(0xFF17201D),
+                            fontSize: 13,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -487,10 +490,18 @@ class _UserRow extends StatelessWidget {
             Expanded(flex: 2, child: _StatusChip(isActive: user.isActive)),
             Expanded(flex: 2, child: _RoleChip(role: user.role)),
             Expanded(flex: 2, child: _CellText(user.gender ?? '-')),
-            Expanded(flex: 2, child: _CellText(user.phoneNo ?? '-')),
+            Expanded(flex: 3, child: _CellText(user.phoneNo ?? '-')),
             Expanded(flex: 2, child: _CellText(_formatDate(user.createdAt))),
+            Expanded(
+              flex: 2,
+              child: _SubscriptionChip(isSubscribed: user.isSubscribed),
+            ),
+            Expanded(
+              flex: 2,
+              child: _CellText(_formatDate(user.subscriptionExpiresAt)),
+            ),
             SizedBox(
-              width: 130,
+              width: 112,
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
@@ -501,11 +512,16 @@ class _UserRow extends StatelessWidget {
                     foregroundColor: user.isActive
                         ? Theme.of(context).colorScheme.error
                         : const Color(0xFF1F7A64),
+                    textStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   icon: Icon(
                     user.isActive
                         ? Icons.block_outlined
                         : Icons.check_circle_outline,
+                    size: 18,
                   ),
                   label: Text(user.isActive ? 'Deactivate' : 'Activate'),
                 ),
@@ -538,7 +554,7 @@ class _UserAvatar extends StatelessWidget {
     final avatarUrl = user.avatarUrl;
 
     return CircleAvatar(
-      radius: 20,
+      radius: 16,
       backgroundColor: const Color(0xFFBFE8D8),
       backgroundImage:
           avatarUrl == null || avatarUrl.isEmpty ? null : NetworkImage(avatarUrl),
@@ -546,7 +562,7 @@ class _UserAvatar extends StatelessWidget {
           ? const Icon(
               Icons.person_outline,
               color: Color(0xFF14211D),
-              size: 21,
+              size: 18,
             )
           : null,
     );
@@ -574,7 +590,7 @@ class _StatusChip extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: isActive ? const Color(0xFF1F7A64) : const Color(0xFF8A4B38),
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -607,7 +623,38 @@ class _RoleChip extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: isAdmin ? const Color(0xFF1F7A64) : const Color(0xFF66736F),
-              fontSize: 12,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SubscriptionChip extends StatelessWidget {
+  const _SubscriptionChip({required this.isSubscribed});
+
+  final bool isSubscribed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: isSubscribed ? const Color(0xFFE8F3EF) : const Color(0xFFF0F4F2),
+          borderRadius: const BorderRadius.all(Radius.circular(8)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          child: Text(
+            isSubscribed ? 'Yes' : 'No',
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: isSubscribed ? const Color(0xFF1F7A64) : const Color(0xFF66736F),
+              fontSize: 11,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -629,6 +676,7 @@ class _CellText extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       style: const TextStyle(
         color: Color(0xFF3A4541),
+        fontSize: 12,
         fontWeight: FontWeight.w600,
       ),
     );

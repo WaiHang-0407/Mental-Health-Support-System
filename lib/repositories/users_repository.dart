@@ -31,11 +31,23 @@ class UsersRepository {
       for (final patient in patientRows) patient['id'] as String: patient,
     };
 
+    final subscriptions = await _client
+        .from(DatabaseTables.subscriptions)
+        .select('patient_id, is_active, expires_at')
+        .inFilter('patient_id', userIds);
+
+    final subscriptionRows = subscriptions.cast<Map<String, dynamic>>();
+    final subscriptionsByPatientId = {
+      for (final subscription in subscriptionRows)
+        subscription['patient_id'] as String: subscription,
+    };
+
     return [
       for (final user in userRows)
         AdminUser.fromRows(
           user: user,
           patient: patientsById[user['id'] as String],
+          subscription: subscriptionsByPatientId[user['id'] as String],
         ),
     ];
   }

@@ -29,12 +29,54 @@ class CommunityActivity {
 
   String get status {
     if (isDeleted) {
-      return 'Deleted';
+      return 'Cancelled';
     }
     if (isArchived) {
       return 'Archived';
     }
+    if (isCompleted) {
+      return 'Completed';
+    }
+    if (isRegistrationClosed) {
+      return 'Registration Closed';
+    }
     return 'Active';
+  }
+
+  bool get isRegistrationClosed {
+    final deadline = registrationDeadline;
+    if (deadline == null) {
+      return false;
+    }
+
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final deadlineOnly = DateTime(deadline.year, deadline.month, deadline.day);
+    return todayOnly.isAfter(deadlineOnly);
+  }
+
+  bool get isCompleted {
+    final date = eventDate;
+    if (date == null) {
+      return false;
+    }
+
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final eventOnly = DateTime(date.year, date.month, date.day);
+    return todayOnly.isAfter(eventOnly);
+  }
+
+  bool get hasLockedRegistration {
+    return isRegistrationClosed && !isCompleted;
+  }
+
+  bool get canEdit {
+    return !isDeleted && !isCompleted;
+  }
+
+  bool get canEditSchedule {
+    return canEdit && !isRegistrationClosed;
   }
 
   factory CommunityActivity.fromJson(Map<String, dynamic> json) {
@@ -82,7 +124,7 @@ class ActivitySponsorship {
     required this.id,
     required this.sponsorName,
     required this.createdAt,
-    this.activityId,
+    this.activityIds = const [],
     this.description,
     this.isDeleted = false,
     this.isArchived = false,
@@ -90,13 +132,29 @@ class ActivitySponsorship {
   });
 
   final String id;
-  final String? activityId;
+  final List<String> activityIds;
   final String sponsorName;
   final String? description;
   final bool isDeleted;
   final bool isArchived;
   final DateTime? createdAt;
   final List<SponsorshipProduct> products;
+
+  int get activeProductCount {
+    return products
+        .where((product) => !product.isDeleted && !product.isArchived)
+        .length;
+  }
+
+  int get archivedProductCount {
+    return products
+        .where((product) => !product.isDeleted && product.isArchived)
+        .length;
+  }
+
+  int get deletedProductCount {
+    return products.where((product) => product.isDeleted).length;
+  }
 
   String get status {
     if (isDeleted) {
@@ -111,7 +169,13 @@ class ActivitySponsorship {
   factory ActivitySponsorship.fromJson(Map<String, dynamic> json) {
     return ActivitySponsorship(
       id: json['id'] as String,
-      activityId: json['activity_id'] as String?,
+      activityIds: {
+        if (json['activity_id'] case final String activityId) activityId,
+        for (final row
+            in (json['activity_sponsorships'] as List<dynamic>? ?? const []))
+          if ((row as Map<String, dynamic>)['activity_id'] case final String id)
+            id,
+      }.toList(),
       sponsorName: json['sponsor_name'] as String? ?? '',
       description: json['description'] as String?,
       isDeleted: CommunityActivity._parseBool(json['is_deleted']),
@@ -178,7 +242,12 @@ class ActivityParticipant {
     required this.createdAt,
     this.name,
     this.gender,
+    this.dob,
     this.phoneNo,
+    this.condition,
+    this.favAnimal,
+    this.favActivity,
+    this.avatarUrl,
     this.isCancelled = false,
   });
 
@@ -186,7 +255,12 @@ class ActivityParticipant {
   final String patientId;
   final String? name;
   final String? gender;
+  final DateTime? dob;
   final String? phoneNo;
+  final String? condition;
+  final String? favAnimal;
+  final String? favActivity;
+  final String? avatarUrl;
   final bool isCancelled;
   final DateTime? createdAt;
 
@@ -200,7 +274,12 @@ class ActivityParticipant {
       createdAt: CommunityActivity._parseDate(json['created_at']),
       name: patient?['name'] as String?,
       gender: patient?['gender'] as String?,
+      dob: CommunityActivity._parseDate(patient?['dob']),
       phoneNo: patient?['phoneno'] as String?,
+      condition: patient?['condition'] as String?,
+      favAnimal: patient?['fav_animal'] as String?,
+      favActivity: patient?['fav_activity'] as String?,
+      avatarUrl: patient?['avatar_url'] as String?,
     );
   }
 }
