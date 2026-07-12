@@ -11,6 +11,7 @@ import 'post_likes_table_repository.dart';
 import 'reports_table_repository.dart';
 import 'saved_posts_table_repository.dart';
 import 'user_activity_logs_table_repository.dart';
+import 'user_role_repository.dart';
 
 class PostRepository {
   final supabase = Supabase.instance.client;
@@ -20,9 +21,10 @@ class PostRepository {
   final _savedPostsTable = SavedPostsTableRepository();
   final _reportsTable = ReportsTableRepository();
   final _activityLogsTable = UserActivityLogsTableRepository();
+  final _userRoleRepo = UserRoleRepository();
 
   static const _postSelect =
-      'id, patient_id, content, image_urls, is_deleted, is_archived, created_at, post_likes(count), comments(count)';
+      'id, patient_id, content, image_urls, is_deleted, is_archived, created_at, post_likes(count), comments(count), users(role)';
 
   String get _uid => supabase.auth.currentUser!.id;
 
@@ -62,6 +64,7 @@ class PostRepository {
       final map = <String, dynamic>{
         ...Map<String, dynamic>.from(p),
         'author_name': nameMap[p['patient_id']] ?? 'Anonymous',
+        'author_role': (p['users'] as Map?)?['role']?.toString(),
         'like_count': (p['post_likes'] as List?)?.first?['count'] ?? 0,
         'comment_count': visibleCommentCounts[p['id']] ?? 0,
       };
@@ -232,6 +235,7 @@ class PostRepository {
     String authorName = 'Anonymous',
     bool isLiked = false,
     bool isSaved = false,
+    Map<String, String?>? authorRoles,
   }) async {
     final postIds = data.map((p) => p['id']).toList();
     final visibleCommentCounts = await _getVisibleCommentCounts(postIds);
@@ -240,6 +244,10 @@ class PostRepository {
       final map = <String, dynamic>{
         ...Map<String, dynamic>.from(p),
         'author_name': authorName,
+        'author_role':
+            (p['users'] as Map?)?['role']?.toString() ??
+            authorRoles?[p['patient_id']] ??
+            p['author_role']?.toString(),
         'like_count': (p['post_likes'] as List?)?.first?['count'] ?? 0,
         'comment_count': visibleCommentCounts[p['id']] ?? 0,
       };

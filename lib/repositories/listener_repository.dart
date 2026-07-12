@@ -72,6 +72,121 @@ class ListenerRepository {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getPendingRequestsForPatient(
+    String patientId,
+  ) async {
+    try {
+      final data = await supabase
+          .from('listener_conversation')
+          .select()
+          .eq('patient_id', patientId)
+          .eq('request_status', 'pending')
+          .order('started_at', ascending: false);
+
+      final pendingRequests = <Map<String, dynamic>>[];
+
+      for (final row in data as List) {
+        final request = Map<String, dynamic>.from(row as Map<String, dynamic>);
+        final listenerId = request['listener_id']?.toString();
+
+        if (listenerId == null || listenerId.isEmpty) {
+          pendingRequests.add(request);
+          continue;
+        }
+
+        final listenerData = await supabase
+            .from('listener')
+            .select()
+            .eq('id', listenerId)
+            .maybeSingle();
+
+        if (listenerData != null) {
+          request['listener_name'] =
+              listenerData['name']?.toString() ?? 'Listener';
+          request['listener_profile_url'] = listenerData['profile_url']
+              ?.toString();
+          request['listener_bio'] = listenerData['bio']?.toString();
+        }
+
+        pendingRequests.add(request);
+      }
+
+      return pendingRequests;
+    } catch (e) {
+      debugPrint('Get pending patient listener requests error: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getActiveRequestsForPatient(
+    String patientId,
+  ) async {
+    try {
+      final data = await supabase
+          .from('listener_conversation')
+          .select()
+          .eq('patient_id', patientId)
+          .eq('request_status', 'accepted')
+          .eq('status', 'active')
+          .order('accepted_at', ascending: false);
+
+      final activeRequests = <Map<String, dynamic>>[];
+
+      for (final row in data as List) {
+        final request = Map<String, dynamic>.from(row as Map<String, dynamic>);
+        final listenerId = request['listener_id']?.toString();
+
+        if (listenerId == null || listenerId.isEmpty) {
+          activeRequests.add(request);
+          continue;
+        }
+
+        final listenerData = await supabase
+            .from('listener')
+            .select()
+            .eq('id', listenerId)
+            .maybeSingle();
+
+        if (listenerData != null) {
+          request['listener_name'] =
+              listenerData['name']?.toString() ?? 'Listener';
+          request['listener_profile_url'] = listenerData['profile_url']
+              ?.toString();
+          request['listener_bio'] = listenerData['bio']?.toString();
+        }
+
+        activeRequests.add(request);
+      }
+
+      return activeRequests;
+    } catch (e) {
+      debugPrint('Get active patient listener requests error: $e');
+      return [];
+    }
+  }
+
+  Future<void> cancelRequest(String conversationId) async {
+    final currentUserId = supabase.auth.currentUser?.id;
+
+    if (currentUserId == null) {
+      throw Exception('User is not logged in.');
+    }
+
+    final updatedRows = await supabase
+        .from('listener_conversation')
+        .update({'request_status': 'cancelled'})
+        .eq('id', conversationId)
+        .eq('patient_id', currentUserId)
+        .eq('request_status', 'pending')
+        .select('id');
+
+    if ((updatedRows as List).isEmpty) {
+      throw Exception(
+        'Request was not cancelled. It may already be accepted or cancelled.',
+      );
+    }
+  }
+
   Future<Map<String, dynamic>?> getConversationById(
     String conversationId,
   ) async {
@@ -216,6 +331,41 @@ class ListenerRepository {
     }
   }
 
+  Future<void> updateListenerProfile(
+    String listenerId,
+    Map<String, dynamic> fields,
+  ) async {
+    final currentUserId = supabase.auth.currentUser?.id;
+
+    if (currentUserId == null) {
+      throw Exception('User is not logged in.');
+    }
+
+    final normalizedFields = <String, dynamic>{};
+
+    fields.forEach((key, value) {
+      if (value == null) {
+        normalizedFields[key] = null;
+      } else if (value is String) {
+        final trimmed = value.trim();
+        normalizedFields[key] = trimmed.isEmpty ? null : trimmed;
+      } else {
+        normalizedFields[key] = value;
+      }
+    });
+
+    final updated = await supabase
+        .from('listener')
+        .update(normalizedFields)
+        .eq('user_id', currentUserId)
+        .select()
+        .maybeSingle();
+
+    if (updated == null) {
+      throw Exception('Listener profile was not updated.');
+    }
+  }
+
   Future<void> sendAutomaticIntroduction({
     required String conversationId,
     required String listenerId,
@@ -244,17 +394,24 @@ class ListenerRepository {
   }
 
   Future<void> acceptRequest(String conversationId) async {
+    final conversation = await getConversationById(conversationId);
+
+    if (conversation == null) {
+      throw Exception('Conversation not found.');
+    }
+
+    if (conversation['request_status'] != 'pending') {
+      throw Exception('This request is no longer pending.');
+    }
+
     await supabase
         .from('listener_conversation')
         .update({
           'request_status': 'accepted',
+          'status': 'active',
           'accepted_at': DateTime.now().toIso8601String(),
         })
         .eq('id', conversationId);
-
-    final conversation = await getConversationById(conversationId);
-
-    if (conversation == null) return;
 
     final listenerId = conversation['listener_id']?.toString();
 
@@ -267,6 +424,16 @@ class ListenerRepository {
   }
 
   Future<void> rejectRequest(String conversationId) async {
+    final conversation = await getConversationById(conversationId);
+
+    if (conversation == null) {
+      throw Exception('Conversation not found.');
+    }
+
+    if (conversation['request_status'] != 'pending') {
+      throw Exception('This request is no longer pending.');
+    }
+
     await supabase
         .from('listener_conversation')
         .update({'request_status': 'rejected'})
@@ -309,17 +476,32 @@ class ListenerRepository {
       'conversation_id': conversationId,
       'sender_type': senderType,
       'message': message,
+      'created_at': DateTime.now().toIso8601String(),
     });
   }
 
   Future<void> endSession(String conversationId) async {
-    await supabase
+    final currentUserId = supabase.auth.currentUser?.id;
+
+    if (currentUserId == null) {
+      throw Exception('User is not logged in.');
+    }
+
+    final updatedRows = await supabase
         .from('listener_conversation')
         .update({
           'status': 'closed',
           'ended_at': DateTime.now().toIso8601String(),
         })
-        .eq('id', conversationId);
+        .eq('id', conversationId)
+        .eq('status', 'active')
+        .select('id');
+
+    if ((updatedRows as List).isEmpty) {
+      throw Exception(
+        'Session was not ended. It may already be closed or access was denied.',
+      );
+    }
   }
 
   Future<void> submitSessionRating({
@@ -327,7 +509,33 @@ class ListenerRepository {
     required int rating,
     String? remark,
   }) async {
-    await supabase
+    if (rating < 1 || rating > 5) {
+      throw Exception('Rating must be between 1 and 5.');
+    }
+
+    final currentUserId = supabase.auth.currentUser?.id;
+
+    if (currentUserId == null) {
+      throw Exception('User is not logged in.');
+    }
+
+    final conversation = await getConversationById(conversationId);
+
+    if (conversation == null) {
+      throw Exception('Conversation not found.');
+    }
+
+    if (conversation['status'] != 'closed') {
+      throw Exception('This session must end before it can be rated.');
+    }
+
+    final listenerId = conversation['listener_id']?.toString();
+
+    if (listenerId == null || listenerId.isEmpty) {
+      throw Exception('Listener could not be found.');
+    }
+
+    final updatedRows = await supabase
         .from('listener_conversation')
         .update({
           'patient_rating': rating,
@@ -336,43 +544,45 @@ class ListenerRepository {
               : remark?.trim(),
           'rated_at': DateTime.now().toIso8601String(),
         })
-        .eq('id', conversationId);
+        .eq('id', conversationId)
+        .eq('patient_id', currentUserId)
+        .eq('status', 'closed')
+        .select('id');
 
-    await _updateListenerAverageRating(conversationId);
+    if ((updatedRows as List).isEmpty) {
+      throw Exception(
+        'The review was not saved. The session may not belong to this patient.',
+      );
+    }
+
+    await _updateListenerAverageRating(listenerId);
   }
 
-  Future<void> _updateListenerAverageRating(String conversationId) async {
-    try {
-      final conversation = await getConversationById(conversationId);
-      if (conversation == null) return;
+  Future<void> _updateListenerAverageRating(String listenerId) async {
+    final ratedSessions = await supabase
+        .from('listener_conversation')
+        .select('patient_rating')
+        .eq('listener_id', listenerId)
+        .eq('status', 'closed')
+        .not('patient_rating', 'is', null);
 
-      final listenerId = conversation['listener_id']?.toString();
-      if (listenerId == null || listenerId.isEmpty) return;
+    final ratings = (ratedSessions as List)
+        .map((e) => (e['patient_rating'] as num).toDouble())
+        .toList();
 
-      final ratedSessions = await supabase
-          .from('listener_conversation')
-          .select('patient_rating')
-          .eq('listener_id', listenerId)
-          .not('patient_rating', 'is', null);
-
-      final ratings = (ratedSessions as List)
-          .map((e) => (e['patient_rating'] as num).toDouble())
-          .toList();
-
-      if (ratings.isEmpty) return;
-
-      final average =
-          ratings.reduce((value, element) => value + element) / ratings.length;
-
-      await supabase
-          .from('listener')
-          .update({
-            'rating': double.parse(average.toStringAsFixed(1)),
-            'total_reviews': ratings.length,
-          })
-          .eq('id', listenerId);
-    } catch (e) {
-      debugPrint('Update listener average rating error: $e');
+    if (ratings.isEmpty) {
+      throw Exception('No saved ratings found for this listener.');
     }
+
+    final average =
+        ratings.reduce((value, element) => value + element) / ratings.length;
+
+    await supabase
+        .from('listener')
+        .update({
+          'rating': double.parse(average.toStringAsFixed(1)),
+          'total_reviews': ratings.length,
+        })
+        .eq('id', listenerId);
   }
 }

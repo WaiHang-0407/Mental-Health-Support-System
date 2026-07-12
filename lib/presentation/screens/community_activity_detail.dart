@@ -351,8 +351,5 @@ class _SponsorWithProducts {
   final Sponsorship sponsor;
   final List<SponsorshipProduct> products;
 
-  const _SponsorWithProducts({
-    required this.sponsor,
-    required this.products,
-  });
+  const _SponsorWithProducts({required this.sponsor, required this.products});
 }

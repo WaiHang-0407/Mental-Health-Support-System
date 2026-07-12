@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../controllers/chat_controller.dart';
+import '../../controllers/listener_controller.dart';
 import '../../models/chat_session.dart';
+import '../../models/listener.dart';
 import '../../widgets/bottom_nav_bar.dart';
 import '../../widgets/gradient_background.dart';
 import '../../services/subscription_service.dart';
 import 'chat_ai.dart';
+import 'listener_chat.dart';
 import 'listener_main.dart';
+import 'listener_waiting.dart';
 
 class ChatMainPage extends StatefulWidget {
   const ChatMainPage({super.key});
@@ -16,10 +21,18 @@ class ChatMainPage extends StatefulWidget {
 
 class _ChatMainPageState extends State<ChatMainPage> {
   final ChatController _controller = ChatController();
+  final ListenerController _listenerController = ListenerController();
   final SubscriptionService _subscriptionService = SubscriptionService();
+  final supabase = Supabase.instance.client;
+  RealtimeChannel? _listenerConversationChannel;
   bool _hasActiveSubscription = false;
+  List<Map<String, dynamic>> _pendingListenerRequests = [];
+  List<Map<String, dynamic>> _activeListenerSessions = [];
   bool _isCheckingSubscription = true;
   bool _isStartingCheckout = false;
+
+  static const String _listenerDeniedMessage =
+      'Looks like your listener is busy at the moment :( its ok ,you can pick another listener!';
 
   // All available animals — matches your assets
   final List<String> _allAnimals = [
@@ -37,10 +50,21 @@ class _ChatMainPageState extends State<ChatMainPage> {
     _controller.loadChatPage();
     _controller.addListener(() => setState(() {}));
     _loadSubscriptionStatus();
+    _loadPendingListenerRequests();
+    _loadActiveListenerSessions();
+    _listenToListenerConversationUpdates();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadPendingListenerRequests();
+    _loadActiveListenerSessions();
   }
 
   @override
   void dispose() {
+    _listenerConversationChannel?.unsubscribe();
     _controller.dispose();
     super.dispose();
   }
@@ -57,8 +81,8 @@ class _ChatMainPageState extends State<ChatMainPage> {
 
   Future<void> _loadSubscriptionStatus() async {
     try {
-      final hasActiveSubscription =
-          await _subscriptionService.hasActiveSubscription();
+      final hasActiveSubscription = await _subscriptionService
+          .hasActiveSubscription();
       if (!mounted) return;
       setState(() {
         _hasActiveSubscription = hasActiveSubscription;
@@ -73,9 +97,127 @@ class _ChatMainPageState extends State<ChatMainPage> {
     }
   }
 
+  void _listenToListenerConversationUpdates() {
+    final currentUserId = supabase.auth.currentUser?.id;
+
+    if (currentUserId == null) return;
+
+    _listenerConversationChannel = supabase
+        .channel('patient_listener_conversations_$currentUserId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'listener_conversation',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'patient_id',
+            value: currentUserId,
+          ),
+          callback: (payload) async {
+            final newRecord = payload.newRecord as Map<String, dynamic>?;
+            final requestStatus = newRecord?['request_status']?.toString();
+
+            if (requestStatus == 'rejected' && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text(_listenerDeniedMessage)),
+              );
+            }
+
+            await _refreshListenerSections();
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _loadPendingListenerRequests() async {
+    final requests = await _listenerController.getMyPendingListenerRequests();
+
+    if (!mounted) return;
+
+    setState(() {
+      _pendingListenerRequests = requests;
+    });
+  }
+
+  Future<void> _loadActiveListenerSessions() async {
+    final sessions = await _listenerController.getMyActiveListenerSessions();
+
+    if (!mounted) return;
+
+    setState(() {
+      _activeListenerSessions = sessions;
+    });
+  }
+
+  Future<void> _refreshListenerSections() async {
+    await _loadPendingListenerRequests();
+    await _loadActiveListenerSessions();
+  }
+
+  Future<void> _cancelPendingListenerRequest(String conversationId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2340),
+        title: const Text(
+          'Cancel request?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'This will remove your pending listener request.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Keep it',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Cancel request',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final error = await _listenerController.cancelListenerRequest(
+      conversationId,
+    );
+
+    if (!mounted) return;
+
+    if (error != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _pendingListenerRequests.removeWhere(
+          (request) => request['id']?.toString() == conversationId,
+        );
+      });
+    }
+
+    await _refreshListenerSections();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Listener request cancelled.')),
+    );
+  }
+
   Future<void> _openListenerPage() async {
-    final hasActiveSubscription =
-        await _subscriptionService.hasActiveSubscription();
+    final hasActiveSubscription = await _subscriptionService
+        .hasActiveSubscription();
     if (!mounted) return;
 
     setState(() => _hasActiveSubscription = hasActiveSubscription);
@@ -85,10 +227,20 @@ class _ChatMainPageState extends State<ChatMainPage> {
       return;
     }
 
-    Navigator.push(
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ListenerMainPage()),
+      MaterialPageRoute(
+        builder: (_) => ListenerMainPage(
+          onRequestCreated: () async {
+            await _refreshListenerSections();
+          },
+        ),
+      ),
     );
+
+    if (mounted) {
+      await _refreshListenerSections();
+    }
   }
 
   Future<void> _startSubscriptionCheckout(
@@ -99,9 +251,9 @@ class _ChatMainPageState extends State<ChatMainPage> {
       await _subscriptionService.startCheckout(provider);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to start payment: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to start payment: $e')));
     } finally {
       if (mounted) setState(() => _isStartingCheckout = false);
     }
@@ -301,6 +453,15 @@ class _ChatMainPageState extends State<ChatMainPage> {
             ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
+                  if (_pendingListenerRequests.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: _buildPendingListenerCard(
+                        _pendingListenerRequests.first,
+                      ),
+                    ),
+                  ],
+
                   // Fav animal quick-start card
                   if (favAnimal != null)
                     Padding(
@@ -437,6 +598,34 @@ class _ChatMainPageState extends State<ChatMainPage> {
                     ),
                   ),
 
+                  if (_activeListenerSessions.isNotEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Your Listener Chats',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        children: _activeListenerSessions.map((session) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _buildActiveListenerSessionCard(session),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+
                   // Sessions list
                   if (_controller.sessions.isNotEmpty) ...[
                     const Padding(
@@ -495,6 +684,209 @@ class _ChatMainPageState extends State<ChatMainPage> {
                     ),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget _buildPendingListenerCard(Map<String, dynamic> request) {
+    final listenerName = request['listener_name']?.toString() ?? 'Listener';
+    final listenerProfileUrl = request['listener_profile_url']?.toString();
+    final listenerBio = request['listener_bio']?.toString();
+    final conversationId = request['id']?.toString();
+
+    final firstLetter = listenerName.isNotEmpty
+        ? listenerName[0].toUpperCase()
+        : '?';
+
+    return GestureDetector(
+      onTap: conversationId == null
+          ? null
+          : () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ListenerWaitingPage(
+                    listener: ListenerModel(
+                      id: request['listener_id']?.toString() ?? '',
+                      name: listenerName,
+                      bio: listenerBio,
+                      profileUrl: listenerProfileUrl,
+                      rating: 5.0,
+                      totalSessions: 0,
+                      status: 'available',
+                    ),
+                    conversationId: conversationId,
+                  ),
+                ),
+              );
+
+              if (mounted) {
+                await _refreshListenerSections();
+              }
+            },
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.16)),
+        ),
+        child: Row(
+          children: [
+            if (listenerProfileUrl != null && listenerProfileUrl.isNotEmpty)
+              CircleAvatar(
+                radius: 24,
+                backgroundImage: NetworkImage(listenerProfileUrl),
+              )
+            else
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: Colors.white.withOpacity(0.18),
+                child: Text(
+                  firstLetter,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    listenerName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    listenerBio != null && listenerBio.isNotEmpty
+                        ? listenerBio
+                        : 'Waiting for this listener to accept your request.',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12.5,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Waiting for acceptance…',
+                    style: TextStyle(color: Colors.white60, fontSize: 12.5),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              children: [
+                TextButton(
+                  onPressed: conversationId == null
+                      ? null
+                      : () => _cancelPendingListenerRequest(conversationId),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveListenerSessionCard(Map<String, dynamic> session) {
+    final listenerName = session['listener_name']?.toString() ?? 'Listener';
+    final listenerProfileUrl = session['listener_profile_url']?.toString();
+    final conversationId = session['id']?.toString();
+    final firstLetter = listenerName.isNotEmpty
+        ? listenerName[0].toUpperCase()
+        : '?';
+
+    return GestureDetector(
+      onTap: conversationId == null
+          ? null
+          : () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ListenerChatPage(
+                    listener: ListenerModel(
+                      id: session['listener_id']?.toString() ?? '',
+                      name: listenerName,
+                      bio: session['listener_bio']?.toString(),
+                      profileUrl: listenerProfileUrl,
+                      rating: 5.0,
+                      totalSessions: 0,
+                      status: 'available',
+                    ),
+                    conversationId: conversationId,
+                  ),
+                ),
+              );
+
+              if (mounted) {
+                await _refreshListenerSections();
+              }
+            },
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.12)),
+        ),
+        child: Row(
+          children: [
+            if (listenerProfileUrl != null && listenerProfileUrl.isNotEmpty)
+              CircleAvatar(
+                radius: 22,
+                backgroundImage: NetworkImage(listenerProfileUrl),
+              )
+            else
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.white.withOpacity(0.18),
+                child: Text(
+                  firstLetter,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    listenerName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Active listener session',
+                    style: TextStyle(color: Colors.white60, fontSize: 12.5),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.white38),
+          ],
+        ),
       ),
     );
   }

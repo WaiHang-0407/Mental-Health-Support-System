@@ -421,24 +421,56 @@ class _PostDetailPageState extends State<PostDetailPage> {
               ),
             ),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GestureDetector(
-                  onTap: () => _openProfile(post.patientId, post.authorName),
-                  child: Text(
-                    post.authorName ?? 'Anonymous',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () =>
+                            _openProfile(post.patientId, post.authorName),
+                        child: Text(
+                          post.authorName ?? 'Anonymous',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (post.authorRole == 'listener' ||
+                          post.authorRole == 'patient_listener')
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blueAccent.withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.blueAccent.withOpacity(0.5),
+                            ),
+                          ),
+                          child: const Text(
+                            'Listener',
+                            style: TextStyle(
+                              color: Colors.blueAccent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                ),
-                Text(
-                  _timeAgo(post.createdAt),
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    _timeAgo(post.createdAt),
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

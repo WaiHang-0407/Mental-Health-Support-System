@@ -34,12 +34,14 @@ class ChatController extends ChangeNotifier {
   // Open or create session for a given animal
   Future<ChatSession> openAnimalSession(String animal) async {
     final session = await _repo.getOrCreateSession(_userId, animal);
-    // Update local list
-    final exists = sessions.any((s) => s.id == session.id);
-    if (!exists) {
-      sessions.insert(0, session);
-      notifyListeners();
+
+    final existsIndex = sessions.indexWhere((s) => s.id == session.id);
+    if (existsIndex != -1) {
+      sessions.removeAt(existsIndex);
     }
+
+    sessions.insert(0, session);
+    notifyListeners();
     return session;
   }
 

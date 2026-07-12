@@ -2,12 +2,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../controllers/user_profile_controller.dart';
-import '../../widgets/gradient_background.dart';
 import '../../repositories/user_role_repository.dart';
+import '../../widgets/bottom_nav_bar.dart';
+import '../../widgets/gradient_background.dart';
+import '../../widgets/listener_bottom_nav_bar.dart';
 import 'listener_dashboard.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  final bool useListenerBottomNav;
+
+  const ProfilePage({super.key, this.useListenerBottomNav = false});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -108,15 +112,25 @@ class _ProfilePageState extends State<ProfilePage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
-            icon: Image.asset('assets/images/back.png', height: 24, width: 24),
-            onPressed: () => Navigator.pop(context),
-          ),
+          automaticallyImplyLeading: !widget.useListenerBottomNav,
+          leading: widget.useListenerBottomNav
+              ? null
+              : IconButton(
+                  icon: Image.asset(
+                    'assets/images/back.png',
+                    height: 24,
+                    width: 24,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
           title: const Text(
             'Community Profile',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
+        bottomNavigationBar: widget.useListenerBottomNav
+            ? const ListenerBottomNavBar(currentIndex: 2)
+            : const BottomNavBar(currentIndex: 4),
         body: _controller.isLoading
             ? const Center(child: CircularProgressIndicator())
             : ListView(
@@ -264,8 +278,21 @@ class _ProfilePageState extends State<ProfilePage> {
 
                   const SizedBox(height: 18),
 
-                  // NEW
-                  if (_role == 'listener' || _role == 'patient_listener')
+                  if (widget.useListenerBottomNav)
+                    _profileAction(
+                      Icons.swap_horiz_outlined,
+                      'Switch to Patient',
+                      'Return to your patient view.',
+                      onTap: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ProfilePage(),
+                          ),
+                        );
+                      },
+                    )
+                  else if (_role == 'listener' || _role == 'patient_listener')
                     _profileAction(
                       Icons.headset_mic_outlined,
                       'Switch to Listener Mode',

@@ -26,6 +26,9 @@ class _ListenerWaitingPageState extends State<ListenerWaitingPage> {
 
   Timer? _timer;
   String _status = 'pending';
+  bool _isOpeningChat = false;
+  static const String _listenerDeniedMessage =
+      'Looks like your listener is busy at the moment :( its ok ,you can pick another listener!';
 
   @override
   void initState() {
@@ -52,10 +55,11 @@ class _ListenerWaitingPageState extends State<ListenerWaitingPage> {
       _status = status;
     });
 
-    if (status == 'accepted') {
+    if (status == 'accepted' && !_isOpeningChat) {
+      _isOpeningChat = true;
       _timer?.cancel();
 
-      Navigator.pushReplacement(
+      final changed = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
           builder: (_) => ListenerChatPage(
@@ -64,7 +68,82 @@ class _ListenerWaitingPageState extends State<ListenerWaitingPage> {
           ),
         ),
       );
+
+      if (!mounted) return;
+
+      if (changed == true) {
+        Navigator.pop(context, true);
+        return;
+      }
+
+      setState(() {
+        _isOpeningChat = false;
+      });
+    } else if (status == 'rejected') {
+      _timer?.cancel();
+      setState(() => _status = 'rejected');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(_listenerDeniedMessage)));
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
     }
+  }
+
+  Future<void> _cancelRequest() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2340),
+        title: const Text(
+          'Cancel request?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'This will remove your pending listener request.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Keep it',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Cancel request',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final error = await _controller.cancelListenerRequest(
+      widget.conversationId,
+    );
+
+    if (!mounted) return;
+
+    if (error != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+
+    _timer?.cancel();
+    setState(() => _status = 'cancelled');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Listener request cancelled.')),
+    );
+    Navigator.pop(context, true);
   }
 
   String _statusText() {
@@ -131,9 +210,20 @@ class _ListenerWaitingPageState extends State<ListenerWaitingPage> {
                     ),
                   ),
                   const SizedBox(height: 22),
-                  if (_status == 'pending')
-                    const CircularProgressIndicator()
-                  else
+                  if (_status == 'pending') ...[
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    OutlinedButton(
+                      onPressed: _cancelRequest,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: const Text('Cancel Request'),
+                    ),
+                  ] else
                     ElevatedButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text('Back'),

@@ -22,6 +22,29 @@ class UserRoleRepository {
     }
   }
 
+  Future<Map<String, String?>> findRolesByIds(List<String> userIds) async {
+    if (userIds.isEmpty) return {};
+
+    try {
+      final data = await supabase
+          .from('users')
+          .select('id, role')
+          .inFilter('id', userIds);
+
+      final roles = <String, String?>{};
+      for (final item in (data as List)) {
+        final id = item['id']?.toString();
+        if (id != null) {
+          roles[id] = item['role']?.toString();
+        }
+      }
+      return roles;
+    } catch (e) {
+      debugPrint('Find roles by ids error: $e');
+      return {};
+    }
+  }
+
   Future<bool> canAccessListenerMode() async {
     final role = await getCurrentUserRole();
 

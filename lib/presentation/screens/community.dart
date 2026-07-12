@@ -6,6 +6,7 @@ import '../../models/community_activity.dart';
 import '../../widgets/bottom_nav_bar.dart';
 import '../../widgets/gradient_background.dart';
 import '../../widgets/image_viewer.dart';
+import '../../widgets/listener_bottom_nav_bar.dart';
 import 'post_detail.dart';
 import 'post_create.dart';
 import 'community_activity_detail.dart';
@@ -20,7 +21,9 @@ import '../../repositories/user_role_repository.dart';
 import 'listener_dashboard.dart';
 
 class CommunityPage extends StatefulWidget {
-  const CommunityPage({super.key});
+  final bool useListenerBottomNav;
+
+  const CommunityPage({super.key, this.useListenerBottomNav = false});
 
   @override
   State<CommunityPage> createState() => _CommunityPageState();
@@ -266,7 +269,27 @@ class _CommunityPageState extends State<CommunityPage>
                   ),
                 ),
 
-                if (canUseListenerMode)
+                if (widget.useListenerBottomNav)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.swap_horiz_outlined,
+                      color: Colors.lightBlueAccent,
+                    ),
+                    title: const Text(
+                      'Switch to Patient',
+                      style: TextStyle(color: Colors.lightBlueAccent),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CommunityPage(),
+                        ),
+                      );
+                    },
+                  )
+                else if (canUseListenerMode)
                   ListTile(
                     leading: const Icon(
                       Icons.headset_mic_outlined,
@@ -288,7 +311,11 @@ class _CommunityPageState extends State<CommunityPage>
                     'View My Profile',
                     style: TextStyle(color: Colors.white70),
                   ),
-                  onTap: () => _openMenuPage(const ProfilePage()),
+                  onTap: () => _openMenuPage(
+                    ProfilePage(
+                      useListenerBottomNav: widget.useListenerBottomNav,
+                    ),
+                  ),
                 ),
 
                 ListTile(
@@ -400,7 +427,9 @@ class _CommunityPageState extends State<CommunityPage>
                 child: const Icon(Icons.add, color: Colors.black87),
               )
             : null,
-        bottomNavigationBar: const BottomNavBar(currentIndex: 4),
+        bottomNavigationBar: widget.useListenerBottomNav
+            ? const ListenerBottomNavBar(currentIndex: 1)
+            : const BottomNavBar(currentIndex: 4),
         body: TabBarView(
           controller: _tabController,
           physics: const NeverScrollableScrollPhysics(),
@@ -582,15 +611,43 @@ class _CommunityPageState extends State<CommunityPage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        GestureDetector(
-                          onTap: () => _openPublicProfile(post),
-                          child: Text(
-                            post.authorName ?? 'Anonymous',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
+                        Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () => _openPublicProfile(post),
+                              child: Text(
+                                post.authorName ?? 'Anonymous',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          ),
+                            if (post.authorRole == 'listener' ||
+                                post.authorRole == 'patient_listener')
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blueAccent.withOpacity(0.18),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.blueAccent.withOpacity(0.5),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Listener',
+                                  style: TextStyle(
+                                    color: Colors.blueAccent,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                         Text(
                           _timeAgo(post.createdAt),

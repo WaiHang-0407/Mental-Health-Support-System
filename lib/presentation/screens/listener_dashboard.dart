@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../controllers/listener_controller.dart';
 import '../../../models/listener.dart';
 import '../../../widgets/gradient_background.dart';
+import '../../../widgets/listener_bottom_nav_bar.dart';
 import 'listener_chat.dart';
+import 'listener_edit_profile.dart';
 
 class ListenerDashboardPage extends StatefulWidget {
   const ListenerDashboardPage({super.key});
@@ -14,6 +17,8 @@ class ListenerDashboardPage extends StatefulWidget {
 
 class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
   final ListenerController _controller = ListenerController();
+  final supabase = Supabase.instance.client;
+  RealtimeChannel? _conversationChannel;
 
   bool _isLoading = true;
   ListenerModel? _listenerProfile;
@@ -32,6 +37,12 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
   void initState() {
     super.initState();
     _loadDashboard();
+  }
+
+  @override
+  void dispose() {
+    _conversationChannel?.unsubscribe();
+    super.dispose();
   }
 
   Future<void> _loadDashboard() async {
@@ -65,6 +76,13 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
 
     if (!mounted) return;
 
+    if (profile != null) {
+      _listenToConversationUpdates(profile.id);
+    } else {
+      _conversationChannel?.unsubscribe();
+      _conversationChannel = null;
+    }
+
     setState(() {
       _listenerProfile = profile;
 
@@ -76,6 +94,27 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
 
       _isLoading = false;
     });
+  }
+
+  void _listenToConversationUpdates(String listenerId) {
+    _conversationChannel?.unsubscribe();
+
+    _conversationChannel = supabase
+        .channel('listener_dashboard_$listenerId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'listener_conversation',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'listener_id',
+            value: listenerId,
+          ),
+          callback: (_) {
+            _loadDashboard();
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _acceptRequest(String conversationId) async {
@@ -270,10 +309,33 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                       ],
                     ),
                   ),
-
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    height: 46,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.edit, size: 18),
+                      label: const Text('Edit Listener Profile'),
+                      style: ElevatedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: const Color(0xFF4C7CF3),
+                        overlayColor: Colors.white.withOpacity(0.16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 2,
+                      ),
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ListenerEditProfilePage(),
+                          ),
+                        );
+                        await _loadDashboard();
+                      },
+                    ),
+                  ),
                   const SizedBox(height: 20),
-
-                  // ===== Statistics Card =====
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -391,7 +453,7 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    request['patient']?['name']?.toString() ??
+                                    request['patients']?['name']?.toString() ??
                                         'Patient request',
                                     style: const TextStyle(
                                       color: Colors.white,
@@ -588,7 +650,7 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
-                                      session['patient']?['name']?.toString() ??
+                                      session['patients']?['name']?.toString() ??
                                           'Completed Conversation',
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -640,6 +702,7 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                     }),
                 ],
               ),
+        bottomNavigationBar: const ListenerBottomNavBar(currentIndex: 0),
       ),
     );
   }

@@ -33,21 +33,45 @@ class UserProfileController extends ChangeNotifier {
   Future<void> loadProfile() async {
     isLoading = true;
     notifyListeners();
+
     try {
       patient = await _patientRepo.getPatientById(_uid);
-      await Future.wait([
-        _loadMyPosts(),
-        _loadSavedPosts(),
-        _loadArchivedPosts(),
-        _loadActivityLogs(),
-        _loadFollowCounts(),
-      ]);
     } catch (e) {
-      debugPrint('loadProfile error: $e');
-    } finally {
-      isLoading = false;
-      notifyListeners();
+      debugPrint('Load patient profile error: $e');
     }
+
+    try {
+      await _loadMyPosts();
+    } catch (e) {
+      debugPrint('Load my posts error: $e');
+    }
+
+    try {
+      await _loadSavedPosts();
+    } catch (e) {
+      debugPrint('Load saved posts error: $e');
+    }
+
+    try {
+      await _loadArchivedPosts();
+    } catch (e) {
+      debugPrint('Load archived posts error: $e');
+    }
+
+    try {
+      await _loadActivityLogs();
+    } catch (e) {
+      debugPrint('Load activity logs error: $e');
+    }
+
+    try {
+      await _loadFollowCounts();
+    } catch (e) {
+      debugPrint('Load follow counts error: $e');
+    }
+
+    isLoading = false;
+    notifyListeners();
   }
 
   Future<void> _loadMyPosts() async {

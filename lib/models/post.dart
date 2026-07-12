@@ -12,6 +12,7 @@ class Post {
   final bool isLiked;
   final bool isSaved;
   final String? authorName;
+  final String? authorRole;
   final DateTime createdAt;
 
   Post({
@@ -27,6 +28,7 @@ class Post {
     this.isLiked = false,
     this.isSaved = false,
     this.authorName,
+    this.authorRole,
     required this.createdAt,
   });
 
@@ -54,6 +56,7 @@ class Post {
       isLiked: isLiked,
       isSaved: isSaved,
       authorName: map['author_name'],
+      authorRole: map['author_role'],
       createdAt: DateTime.parse(map['created_at']),
     );
   }

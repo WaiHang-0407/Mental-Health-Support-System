@@ -7,7 +7,9 @@ import '../../../widgets/gradient_background.dart';
 import 'listener_waiting.dart';
 
 class ListenerMainPage extends StatefulWidget {
-  const ListenerMainPage({super.key});
+  final VoidCallback? onRequestCreated;
+
+  const ListenerMainPage({super.key, this.onRequestCreated});
 
   @override
   State<ListenerMainPage> createState() => _ListenerMainPageState();
@@ -28,8 +30,8 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
   }
 
   Future<void> _loadListeners() async {
-    final hasActiveSubscription =
-        await _subscriptionService.hasActiveSubscription();
+    final hasActiveSubscription = await _subscriptionService
+        .hasActiveSubscription();
 
     if (!mounted) return;
 
@@ -53,8 +55,8 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
   }
 
   Future<void> _openListenerChat(ListenerModel listener) async {
-    final hasActiveSubscription =
-        await _subscriptionService.hasActiveSubscription();
+    final hasActiveSubscription = await _subscriptionService
+        .hasActiveSubscription();
     if (!mounted) return;
 
     if (!hasActiveSubscription) {
@@ -143,7 +145,11 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
       return;
     }
 
-    Navigator.push(
+    widget.onRequestCreated?.call();
+
+    if (!mounted) return;
+
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ListenerWaitingPage(
@@ -152,6 +158,8 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
         ),
       ),
     );
+
+    widget.onRequestCreated?.call();
   }
 
   void _showSubscriptionRequiredMessage() {

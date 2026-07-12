@@ -61,6 +61,57 @@ class ListenerController {
     return await _listenerRepo.getListenerStats(listener.id);
   }
 
+  Future<String?> updateListenerProfile(
+    String listenerId,
+    Map<String, dynamic> fields,
+  ) async {
+    try {
+      await _listenerRepo.updateListenerProfile(listenerId, fields);
+      return null;
+    } catch (e) {
+      debugPrint('Update listener profile error: $e');
+      return 'Failed to update listener profile.';
+    }
+  }
+
+  Future<String?> saveListenerProfile({
+    required String name,
+    String? bio,
+    required String status,
+    String? introductionMessage,
+  }) async {
+    final listener = await getMyListenerProfile();
+    if (listener == null) {
+      return 'Listener profile not found.';
+    }
+
+    final updates = <String, dynamic>{};
+
+    final trimmedName = name.trim();
+    if (trimmedName.isNotEmpty) {
+      updates['name'] = trimmedName;
+    }
+
+    final trimmedStatus = status.trim();
+    if (trimmedStatus.isNotEmpty) {
+      updates['status'] = trimmedStatus;
+    }
+
+    if (bio != null) {
+      final trimmedBio = bio.trim();
+      updates['bio'] = trimmedBio.isEmpty ? null : trimmedBio;
+    }
+
+    if (introductionMessage != null) {
+      final trimmedIntro = introductionMessage.trim();
+      updates['introduction_message'] = trimmedIntro.isEmpty
+          ? null
+          : trimmedIntro;
+    }
+
+    return await updateListenerProfile(listener.id, updates);
+  }
+
   Future<String?> requestListener(String listenerId) async {
     final patientId = currentUserId;
 
@@ -73,6 +124,36 @@ class ListenerController {
       patientId: patientId,
       listenerId: listenerId,
     );
+  }
+
+  Future<List<Map<String, dynamic>>> getMyPendingListenerRequests() async {
+    final patientId = currentUserId;
+
+    if (patientId == null) {
+      return [];
+    }
+
+    return await _listenerRepo.getPendingRequestsForPatient(patientId);
+  }
+
+  Future<List<Map<String, dynamic>>> getMyActiveListenerSessions() async {
+    final patientId = currentUserId;
+
+    if (patientId == null) {
+      return [];
+    }
+
+    return await _listenerRepo.getActiveRequestsForPatient(patientId);
+  }
+
+  Future<String?> cancelListenerRequest(String conversationId) async {
+    try {
+      await _listenerRepo.cancelRequest(conversationId);
+      return null;
+    } catch (e) {
+      debugPrint('Cancel listener request error: $e');
+      return 'Failed to cancel request.';
+    }
   }
 
   Future<String?> getRequestStatus(String conversationId) async {

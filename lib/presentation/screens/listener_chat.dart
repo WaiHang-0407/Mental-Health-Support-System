@@ -21,7 +21,6 @@ class ListenerChatPage extends StatefulWidget {
     required this.conversationId,
     this.isListenerSide = false,
     this.readOnly = false,
-    t,
   });
 
   @override
@@ -35,26 +34,29 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
 
   final supabase = Supabase.instance.client;
   RealtimeChannel? _messageChannel;
+  RealtimeChannel? _conversationChannel;
 
   bool _isLoading = true;
   bool _isSending = false;
   bool _showEmoji = false;
   bool _isClosed = false;
+  bool _reviewPrompted = false;
 
   List<ListenerMessageModel> _messages = [];
 
-  @override
   @override
   void initState() {
     super.initState();
     _loadMessages();
     _loadConversationStatus();
     _listenToMessages();
+    _listenToConversationUpdates();
   }
 
   @override
   void dispose() {
     _messageChannel?.unsubscribe();
+    _conversationChannel?.unsubscribe();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -77,6 +79,82 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
           },
         )
         .subscribe();
+  }
+
+  void _listenToConversationUpdates() {
+    _conversationChannel = supabase
+        .channel('listener_conversation_${widget.conversationId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'listener_conversation',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: widget.conversationId,
+          ),
+          callback: (_) async {
+            await _handleConversationUpdate();
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _handleConversationUpdate() async {
+    final status = await _controller.getConversationStatus(
+      widget.conversationId,
+    );
+
+    if (!mounted) return;
+
+    if (status != 'closed' || _reviewPrompted) return;
+
+    setState(() {
+      _isClosed = true;
+      _reviewPrompted = true;
+      _showEmoji = false;
+    });
+
+    if (widget.isListenerSide) {
+      if (!widget.readOnly && mounted) {
+        Navigator.pop(context, true);
+      }
+      return;
+    }
+
+    // Patient must acknowledge that the listener ended the session.
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1A2340),
+          title: const Text(
+            'Session ended',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            '${widget.listener.name} has ended the listener session.',
+            style: const TextStyle(color: Colors.white70, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    // Review is optional. Closing with X still continues.
+    await _showRatingPopup();
+
+    if (mounted) {
+      Navigator.pop(context, true);
+    }
   }
 
   Future<void> _loadMessages() async {
@@ -203,11 +281,18 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
 
     if (confirm != true) return;
 
+    if (!widget.isListenerSide) {
+      setState(() => _reviewPrompted = true);
+    }
+
     final error = await _controller.endSession(widget.conversationId);
 
     if (!mounted) return;
 
     if (error != null) {
+      if (!widget.isListenerSide) {
+        setState(() => _reviewPrompted = false);
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error)));
@@ -215,22 +300,19 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
     }
 
     if (!widget.isListenerSide) {
+      // The patient may submit the review or close the dialog to skip it.
       await _showRatingPopup();
     }
 
-    if (mounted) {
-      setState(() {
-        _isClosed = true;
-      });
+    if (!mounted) return;
 
-      if (!widget.isListenerSide) {
-        await _showRatingPopup();
-      }
+    setState(() {
+      _isClosed = true;
+      _reviewPrompted = true;
+    });
 
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
-    }
+    // Returning true tells the previous page to refresh its chat list.
+    Navigator.pop(context, true);
   }
 
   Future<void> _loadConversationStatus() async {
@@ -413,36 +495,37 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
               ],
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.more_vert, color: Colors.white),
-                onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    backgroundColor: const Color(0xFF1A2340),
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(16),
-                      ),
-                    ),
-                    builder: (_) => SafeArea(
-                      child: ListTile(
-                        leading: const Icon(
-                          Icons.call_end,
-                          color: Colors.redAccent,
+              if (!_isClosed && !widget.readOnly)
+                IconButton(
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: const Color(0xFF1A2340),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(16),
                         ),
-                        title: const Text(
-                          'End Session',
-                          style: TextStyle(color: Colors.redAccent),
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _confirmEndSession();
-                        },
                       ),
-                    ),
-                  );
-                },
-              ),
+                      builder: (_) => SafeArea(
+                        child: ListTile(
+                          leading: const Icon(
+                            Icons.call_end,
+                            color: Colors.redAccent,
+                          ),
+                          title: const Text(
+                            'End Session',
+                            style: TextStyle(color: Colors.redAccent),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _confirmEndSession();
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
             ],
           ),
           body: Column(
@@ -570,11 +653,11 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
     );
   }
 
-  Future<void> _showRatingPopup() async {
+  Future<bool> _showRatingPopup() async {
     int selectedRating = 0;
     final remarkController = TextEditingController();
 
-    await showDialog(
+    final submitted = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (_) => StatefulBuilder(
@@ -591,7 +674,7 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.white54),
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, false),
                 ),
               ],
             ),
@@ -656,7 +739,7 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
                           return;
                         }
 
-                        Navigator.pop(context);
+                        Navigator.pop(context, true);
                       },
                 child: const Text(
                   'Submit',
@@ -670,5 +753,6 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
     );
 
     remarkController.dispose();
+    return submitted ?? false;
   }
 }
