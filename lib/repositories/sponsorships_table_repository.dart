@@ -7,10 +7,22 @@ class SponsorshipsTableRepository {
     : supabase = supabase ?? Supabase.instance.client;
 
   Future<List<dynamic>> getVisibleByActivity(String activityId) async {
+    final links = await supabase
+        .from('activity_sponsorships')
+        .select('sponsorship_id')
+        .eq('activity_id', activityId);
+
+    final sponsorIds = links
+        .map((link) => link['sponsorship_id'] as String?)
+        .whereType<String>()
+        .toList();
+
+    if (sponsorIds.isEmpty) return const [];
+
     return await supabase
         .from('sponsorships')
         .select()
-        .eq('activity_id', activityId)
+        .inFilter('id', sponsorIds)
         .eq('is_deleted', false)
         .eq('is_archived', false)
         .order('created_at', ascending: false);

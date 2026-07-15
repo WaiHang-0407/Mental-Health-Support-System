@@ -2,11 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../controllers/user_profile_controller.dart';
-import '../../repositories/user_role_repository.dart';
-import '../../widgets/bottom_nav_bar.dart';
 import '../../widgets/gradient_background.dart';
 import '../../widgets/listener_bottom_nav_bar.dart';
+import '../../repositories/user_role_repository.dart';
 import 'listener_dashboard.dart';
+import 'profile_post_list.dart';
 
 class ProfilePage extends StatefulWidget {
   final bool useListenerBottomNav;
@@ -23,6 +23,36 @@ class _ProfilePageState extends State<ProfilePage> {
   final UserRoleRepository _roleRepo = UserRoleRepository();
 
   String? _role;
+  static const _genderOptions = [
+    'Female',
+    'Male',
+    'Non-binary',
+    'Prefer not to say',
+  ];
+  static const _conditionOptions = [
+    'Depression',
+    'Stress',
+    'Anxiety',
+    'Confidence',
+    'Relationships',
+    'Trauma',
+  ];
+  static const _animalOptions = [
+    'Dog',
+    'Cat',
+    'Rabbit',
+    'Duck',
+    'Parrot',
+    'Guinea Pig',
+  ];
+  static const _activityOptions = [
+    'Reading',
+    'Music',
+    'Exercise',
+    'Gaming',
+    'Cooking',
+    'Art',
+  ];
   @override
   void initState() {
     super.initState();
@@ -130,7 +160,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         bottomNavigationBar: widget.useListenerBottomNav
             ? const ListenerBottomNavBar(currentIndex: 2)
-            : const BottomNavBar(currentIndex: 4),
+            : null,
         body: _controller.isLoading
             ? const Center(child: CircularProgressIndicator())
             : ListView(
@@ -164,8 +194,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             if (_controller.isUploadingAvatar)
                               Positioned.fill(
                                 child: CircleAvatar(
-                                  backgroundColor: Colors.black.withOpacity(
-                                    0.5,
+                                  backgroundColor: Colors.black.withValues(
+                                    alpha: 0.5,
                                   ),
                                   child: const CircularProgressIndicator(
                                     strokeWidth: 2,
@@ -216,11 +246,17 @@ class _ProfilePageState extends State<ProfilePage> {
                                 _statChip(
                                   '${_controller.savedPosts.length}',
                                   'Saved',
+                                  onTap: () => _openProfilePostList(
+                                    const SavedPostsPage(),
+                                  ),
                                 ),
                                 const SizedBox(width: 18),
                                 _statChip(
                                   '${_controller.archivedPosts.length}',
                                   'Archived',
+                                  onTap: () => _openProfilePostList(
+                                    const ArchivedPostsPage(),
+                                  ),
                                 ),
                               ],
                             ),
@@ -244,7 +280,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                   ),
                   const SizedBox(height: 28),
-                  _sectionTitle('Profile Information'),
+                  _sectionHeader(
+                    'Profile Information',
+                    onEdit: _showProfileInfoEditor,
+                  ),
                   _infoTile(Icons.person_outline, 'Gender', patient?.gender),
                   _infoTile(
                     Icons.cake_outlined,
@@ -256,7 +295,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   _infoTile(Icons.phone_outlined, 'Phone', patient?.phoneno),
                   const SizedBox(height: 18),
 
-                  _sectionTitle('Preferences'),
+                  _sectionHeader('Preferences', onEdit: _showPreferencesEditor),
 
                   _infoTile(
                     Icons.health_and_safety_outlined,
@@ -306,26 +345,20 @@ class _ProfilePageState extends State<ProfilePage> {
                         );
                       },
                     ),
-
-                  _profileAction(
-                    Icons.edit_outlined,
-                    'Edit Profile',
-                    'Update your name, gender, date of birth, and phone.',
-                  ),
-
-                  _profileAction(
-                    Icons.tune_outlined,
-                    'Edit Preferences',
-                    'Update your condition, companion, and activity choices.',
-                  ),
                 ],
               ),
       ),
     );
   }
 
-  Widget _statChip(String value, String label) {
-    return Column(
+  void _openProfilePostList(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page)).then((_) {
+      if (mounted) _controller.loadProfile();
+    });
+  }
+
+  Widget _statChip(String value, String label, {VoidCallback? onTap}) {
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -342,18 +375,44 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ],
     );
+
+    if (onTap == null) return content;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        child: content,
+      ),
+    );
   }
 
-  Widget _sectionTitle(String text) {
+  Widget _sectionHeader(String text, {required VoidCallback onEdit}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: onEdit,
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF9FE7D3),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: const Text('Edit'),
+          ),
+        ],
       ),
     );
   }
@@ -363,9 +422,9 @@ class _ProfilePageState extends State<ProfilePage> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.07),
+        color: Colors.white.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
@@ -404,9 +463,9 @@ class _ProfilePageState extends State<ProfilePage> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: Row(
           children: [
@@ -441,5 +500,278 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ),
     );
+  }
+
+  Future<void> _showProfileInfoEditor() async {
+    final patient = _controller.patient;
+    String gender = _genderOptions.contains(patient?.gender)
+        ? patient!.gender!
+        : _genderOptions.first;
+    DateTime? dob = patient?.dob;
+    final phoneController = TextEditingController(text: patient?.phoneno ?? '');
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF111A33),
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+              ),
+              title: const Text(
+                'Edit profile information',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: gender,
+                    dropdownColor: const Color(0xFF1A2340),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _dialogInputDecoration('Gender'),
+                    items: [
+                      for (final option in _genderOptions)
+                        DropdownMenuItem(value: option, child: Text(option)),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => gender = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: dialogContext,
+                        initialDate: dob ?? DateTime(2000),
+                        firstDate: DateTime(1900),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => dob = picked);
+                      }
+                    },
+                    icon: const Icon(Icons.cake_outlined),
+                    label: Text(
+                      dob == null
+                          ? 'Select date of birth'
+                          : '${dob!.day}/${dob!.month}/${dob!.year}',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.24),
+                      ),
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _dialogInputDecoration('Phone number'),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (saved == true) {
+      await _controller.updateProfileFields({
+        'gender': gender,
+        if (dob != null) 'dob': dob!.toIso8601String().split('T').first,
+        'phoneno': phoneController.text.trim(),
+      });
+      if (mounted) _showSnack('Profile information updated.');
+    }
+  }
+
+  Future<void> _showPreferencesEditor() async {
+    final patient = _controller.patient;
+    final selectedConditions = (patient?.condition ?? '')
+        .split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet();
+    final currentAnimalLabel = _labelFromStoredValue(patient?.favAnimal);
+    final currentActivityLabel = _labelFromStoredValue(patient?.favActivity);
+    String favAnimal = _animalOptions.contains(currentAnimalLabel)
+        ? currentAnimalLabel
+        : _animalOptions.first;
+    String favActivity = _activityOptions.contains(currentActivityLabel)
+        ? currentActivityLabel
+        : _activityOptions.first;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF111A33),
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+              ),
+              title: const Text(
+                'Edit preferences',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Condition',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final condition in _conditionOptions)
+                          FilterChip(
+                            label: Text(condition),
+                            selected: selectedConditions.contains(condition),
+                            onSelected: (selected) {
+                              setDialogState(() {
+                                if (selected) {
+                                  selectedConditions.add(condition);
+                                } else {
+                                  selectedConditions.remove(condition);
+                                }
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue: favAnimal,
+                      dropdownColor: const Color(0xFF1A2340),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: _dialogInputDecoration('Favorite companion'),
+                      items: [
+                        for (final option in _animalOptions)
+                          DropdownMenuItem(value: option, child: Text(option)),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => favAnimal = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: favActivity,
+                      dropdownColor: const Color(0xFF1A2340),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: _dialogInputDecoration('Favorite activity'),
+                      items: [
+                        for (final option in _activityOptions)
+                          DropdownMenuItem(value: option, child: Text(option)),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => favActivity = value);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (saved == true) {
+      await _controller.updateProfileFields({
+        'condition': selectedConditions.join(','),
+        'fav_animal': _animalKey(favAnimal),
+        'fav_activity': favActivity.toLowerCase(),
+      });
+      if (mounted) _showSnack('Preferences updated.');
+    }
+  }
+
+  String _animalKey(String value) {
+    return value.trim().toLowerCase().replaceAll(' ', '-');
+  }
+
+  String _labelFromStoredValue(String? value) {
+    final normalized = (value ?? '').trim().toLowerCase().replaceAll('-', ' ');
+    if (normalized.isEmpty) return '';
+    return normalized
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .map((word) => word[0].toUpperCase() + word.substring(1))
+        .join(' ');
+  }
+
+  InputDecoration _dialogInputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.68)),
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.08),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF9FE7D3)),
+      ),
+    );
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

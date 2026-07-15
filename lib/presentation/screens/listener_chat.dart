@@ -74,11 +74,43 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
             column: 'conversation_id',
             value: widget.conversationId,
           ),
-          callback: (_) {
-            _loadMessages();
+          callback: (payload) {
+            _handleRealtimeMessage(payload);
           },
         )
         .subscribe();
+  }
+
+  void _handleRealtimeMessage(PostgresChangePayload payload) {
+    final record = payload.newRecord;
+    if (record.isEmpty) {
+      _loadMessages();
+      return;
+    }
+
+    final message = ListenerMessageModel.fromMap(record);
+
+    if (!mounted) return;
+
+    setState(() {
+      _messages.removeWhere((existing) {
+        final isSameSavedMessage = existing.id == message.id;
+        final isMatchingLocalMessage =
+            existing.id.startsWith('local_') &&
+            existing.senderType == message.senderType &&
+            existing.message == message.message;
+        return isSameSavedMessage || isMatchingLocalMessage;
+      });
+      _messages.add(message);
+      _messages.sort((a, b) {
+        final left = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final right = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return left.compareTo(right);
+      });
+      _isLoading = false;
+    });
+
+    _scrollToBottom();
   }
 
   void _listenToConversationUpdates() {
@@ -106,7 +138,6 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
     );
 
     if (!mounted) return;
-
     if (status != 'closed' || _reviewPrompted) return;
 
     setState(() {
@@ -122,7 +153,6 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
       return;
     }
 
-    // Patient must acknowledge that the listener ended the session.
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -148,8 +178,6 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
     );
 
     if (!mounted) return;
-
-    // Review is optional. Closing with X still continues.
     await _showRatingPopup();
 
     if (mounted) {
@@ -187,17 +215,29 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
 
     if (text.isEmpty || _isSending) return;
 
+    final senderType = widget.isListenerSide ? 'listener' : 'patient';
+    final localMessage = ListenerMessageModel(
+      id: 'local_${DateTime.now().microsecondsSinceEpoch}',
+      conversationId: widget.conversationId,
+      senderType: senderType,
+      message: text,
+      createdAt: DateTime.now(),
+    );
+
     setState(() {
       _isSending = true;
       _showEmoji = false;
+      _messages.add(localMessage);
+      _isLoading = false;
     });
 
     _textController.clear();
+    _scrollToBottom();
 
     final error = await _controller.sendMessage(
       conversationId: widget.conversationId,
       message: text,
-      senderType: widget.isListenerSide ? 'listener' : 'patient',
+      senderType: senderType,
     );
 
     if (!mounted) return;
@@ -207,6 +247,13 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
     });
 
     if (error != null) {
+      setState(() {
+        _messages.removeWhere((message) => message.id == localMessage.id);
+      });
+      _textController.text = text;
+      _textController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _textController.text.length),
+      );
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error)));
@@ -300,19 +347,19 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
     }
 
     if (!widget.isListenerSide) {
-      // The patient may submit the review or close the dialog to skip it.
       await _showRatingPopup();
     }
 
-    if (!mounted) return;
+    if (mounted) {
+      setState(() {
+        _isClosed = true;
+        _reviewPrompted = true;
+      });
 
-    setState(() {
-      _isClosed = true;
-      _reviewPrompted = true;
-    });
-
-    // Returning true tells the previous page to refresh its chat list.
-    Navigator.pop(context, true);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    }
   }
 
   Future<void> _loadConversationStatus() async {
@@ -349,7 +396,7 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
           if (!isMine) ...[
             CircleAvatar(
               radius: 14,
-              backgroundColor: Colors.white.withOpacity(0.18),
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
               child: Text(
                 oppositeAvatarText,
                 style: const TextStyle(
@@ -366,8 +413,8 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: isMine
-                    ? Colors.white.withOpacity(0.25)
-                    : Colors.white.withOpacity(0.1),
+                    ? Colors.white.withValues(alpha: 0.25)
+                    : Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -376,8 +423,8 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
                 ),
                 border: Border.all(
                   color: isMine
-                      ? Colors.white.withOpacity(0.3)
-                      : Colors.white.withOpacity(0.1),
+                      ? Colors.white.withValues(alpha: 0.3)
+                      : Colors.white.withValues(alpha: 0.1),
                 ),
               ),
               child: Text(
@@ -420,7 +467,7 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
                 : 'Feel free to share what is on your mind.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
+              color: Colors.white.withValues(alpha: 0.6),
               fontSize: 14,
             ),
           ),
@@ -465,7 +512,7 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: Colors.white.withOpacity(0.18),
+                  backgroundColor: Colors.white.withValues(alpha: 0.18),
                   child: Text(
                     avatarText,
                     style: const TextStyle(
@@ -600,10 +647,10 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
+                            color: Colors.white.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                             ),
                           ),
                           child: TextField(
@@ -710,7 +757,7 @@ class _ListenerChatPageState extends State<ListenerChatPage> {
                     hintText: 'Optional remark...',
                     hintStyle: const TextStyle(color: Colors.white38),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.08),
+                    fillColor: Colors.white.withValues(alpha: 0.08),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide.none,

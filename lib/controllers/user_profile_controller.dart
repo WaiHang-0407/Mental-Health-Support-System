@@ -176,6 +176,13 @@ class UserProfileController extends ChangeNotifier {
     await _log('personalization_updated', targetType: 'profile');
   }
 
+  Future<void> updateProfileFields(Map<String, dynamic> fields) async {
+    await _patientRepo.updateProfile(_uid, fields);
+    await _log('profile_updated', targetType: 'profile');
+    patient = await _patientRepo.getPatientById(_uid);
+    notifyListeners();
+  }
+
   Future<void> _log(
     String action, {
     String? targetType,

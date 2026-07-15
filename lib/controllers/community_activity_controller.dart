@@ -7,13 +7,21 @@ class CommunityActivityController extends ChangeNotifier {
   final CommunityActivityRepository _repo = CommunityActivityRepository();
   List<CommunityActivity> activities = [];
   bool isLoading = false;
+  String? errorMessage;
 
   Future<void> loadActivities() async {
     isLoading = true;
+    errorMessage = null;
     notifyListeners();
-    activities = await _repo.getActivities();
-    isLoading = false;
-    notifyListeners();
+    try {
+      activities = await _repo.getActivities();
+    } catch (e) {
+      errorMessage = 'Unable to load community activities.';
+      activities = [];
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> register(CommunityActivity activity) async {
@@ -45,11 +53,13 @@ class CommunityActivityController extends ChangeNotifier {
         imageUrl: a.imageUrl,
         eventDate: a.eventDate,
         location: a.location,
+        registrationDeadline: a.registrationDeadline,
         maxParticipants: a.maxParticipants,
         registeredCount: registeredCount ?? a.registeredCount,
         isDeleted: a.isDeleted,
         isArchived: a.isArchived,
         isRegistered: isRegistered ?? a.isRegistered,
+        createdBy: a.createdBy,
         createdAt: a.createdAt,
       );
       notifyListeners();

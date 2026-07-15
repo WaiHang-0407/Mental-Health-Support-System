@@ -15,19 +15,20 @@ class ChatRepository {
     String patientId,
     String animal,
   ) async {
+    final animalKey = _animalKey(animal);
     final existing = await supabase
         .from('chat_sessions')
         .select()
         .eq('patient_id', patientId)
-        .eq('animal', animal)
+        .inFilter('animal', _animalVariants(animalKey))
         .maybeSingle();
     if (existing != null) return ChatSession.fromMap(existing);
 
     final session = ChatSession(
       id: '',
       patientId: patientId,
-      title: '${_capitalize(animal)} Chat',
-      animal: animal,
+      title: '${_capitalize(animalKey)} Chat',
+      animal: animalKey,
       createdAt: DateTime.now(),
     );
     final data = await supabase
@@ -72,6 +73,20 @@ class ChatRepository {
 
   String _capitalize(String s) =>
       s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+  String _animalKey(String animal) {
+    return animal.trim().toLowerCase().replaceAll(' ', '-');
+  }
+
+  List<String> _animalVariants(String animal) {
+    final spaced = animal.replaceAll('-', ' ');
+    final titled = spaced
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .map((word) => word[0].toUpperCase() + word.substring(1))
+        .join(' ');
+    return {animal, spaced, titled}.toList();
+  }
 
   Future<void> softDeleteMessage(String messageId) async {
     await supabase

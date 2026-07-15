@@ -24,7 +24,7 @@ class PostRepository {
   final _userRoleRepo = UserRoleRepository();
 
   static const _postSelect =
-      'id, patient_id, content, image_urls, is_deleted, is_archived, created_at, post_likes(count), comments(count), users(role)';
+      'id, patient_id, content, image_urls, is_deleted, is_archived, created_at, post_likes(count), comments(count)';
 
   String get _uid => supabase.auth.currentUser!.id;
 
@@ -48,6 +48,12 @@ class PostRepository {
     final patientIds = data.map((p) => p['patient_id']).toList();
     final patientData = await _patientRepo.findNamesByIds(patientIds);
     final nameMap = {for (final p in patientData) p['id']: p['name']};
+    final avatarMap = {
+      for (final p in patientData) p['id']: p['avatar_url']?.toString(),
+    };
+    final roleMap = await _userRoleRepo.findRolesByIds(
+      patientIds.map((id) => id.toString()).toList(),
+    );
 
     final postIds = data.map((p) => p['id']).toList();
     final likes = await _postLikesTable.findLikedPostIds(_uid, postIds);
@@ -64,7 +70,9 @@ class PostRepository {
       final map = <String, dynamic>{
         ...Map<String, dynamic>.from(p),
         'author_name': nameMap[p['patient_id']] ?? 'Anonymous',
-        'author_role': (p['users'] as Map?)?['role']?.toString(),
+        'author_avatar_url': avatarMap[p['patient_id']],
+        'author_role':
+            roleMap[p['patient_id']] ?? p['author_role']?.toString(),
         'like_count': (p['post_likes'] as List?)?.first?['count'] ?? 0,
         'comment_count': visibleCommentCounts[p['id']] ?? 0,
       };
@@ -83,7 +91,11 @@ class PostRepository {
     final patientData = await _patientRepo.findNameById(_uid);
     final name = patientData?['name'] ?? 'Anonymous';
 
-    return _mapPostsWithVisibleCommentCounts(data, authorName: name);
+    return _mapPostsWithVisibleCommentCounts(
+      data,
+      authorName: name,
+      authorAvatarUrl: patientData?['avatar_url']?.toString(),
+    );
   }
 
   Future<List<Post>> getPostsByPatient(
@@ -92,9 +104,15 @@ class PostRepository {
     bool isSaved = false,
   }) async {
     final data = await _getByPatient(patientId, archived: archived);
+    final patientData = data.isEmpty
+        ? null
+        : await _patientRepo.findNameById(patientId);
     return _mapPostsWithVisibleCommentCounts(
       data,
-      authorName: patientId == _uid ? 'You' : 'Anonymous',
+      authorName: patientId == _uid
+          ? 'You'
+          : patientData?['name']?.toString() ?? 'Anonymous',
+      authorAvatarUrl: patientData?['avatar_url']?.toString(),
       isSaved: isSaved,
     );
   }
@@ -233,21 +251,24 @@ class PostRepository {
   Future<List<Post>> _mapPostsWithVisibleCommentCounts(
     List data, {
     String authorName = 'Anonymous',
+    String? authorAvatarUrl,
     bool isLiked = false,
     bool isSaved = false,
-    Map<String, String?>? authorRoles,
   }) async {
     final postIds = data.map((p) => p['id']).toList();
     final visibleCommentCounts = await _getVisibleCommentCounts(postIds);
+    final authorIds = data.map((p) => p['patient_id']).toList();
+    final roleMap = await _userRoleRepo.findRolesByIds(
+      authorIds.map((id) => id.toString()).toList(),
+    );
 
     return data.map((p) {
       final map = <String, dynamic>{
         ...Map<String, dynamic>.from(p),
         'author_name': authorName,
-        'author_role':
-            (p['users'] as Map?)?['role']?.toString() ??
-            authorRoles?[p['patient_id']] ??
-            p['author_role']?.toString(),
+        'author_avatar_url':
+            authorAvatarUrl ?? p['author_avatar_url']?.toString(),
+        'author_role': roleMap[p['patient_id']] ?? p['author_role']?.toString(),
         'like_count': (p['post_likes'] as List?)?.first?['count'] ?? 0,
         'comment_count': visibleCommentCounts[p['id']] ?? 0,
       };

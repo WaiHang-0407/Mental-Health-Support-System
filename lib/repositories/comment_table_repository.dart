@@ -64,18 +64,8 @@ class CommentRepository {
       childrenByParent.putIfAbsent(parentId, () => []).add(comment);
     }
 
-    List<Comment> flattenReplies(String parentId) {
-      final directReplies = childrenByParent[parentId] ?? [];
-      return directReplies.expand((reply) {
-        return [reply, ...flattenReplies(reply.id)];
-      }).toList();
-    }
-
-    final topLevel = allComments.where((c) {
-      return c.parentId == null || !loadedCommentIds.contains(c.parentId);
-    }).toList();
-
-    return topLevel.map((comment) {
+    Comment withReplies(Comment comment) {
+      final replies = childrenByParent[comment.id] ?? [];
       return Comment(
         id: comment.id,
         postId: comment.postId,
@@ -87,10 +77,16 @@ class CommentRepository {
         likeCount: comment.likeCount,
         isLiked: comment.isLiked,
         authorName: comment.authorName,
-        replies: flattenReplies(comment.id),
+        replies: replies.map(withReplies).toList(),
         createdAt: comment.createdAt,
       );
+    }
+
+    final topLevel = allComments.where((c) {
+      return c.parentId == null || !loadedCommentIds.contains(c.parentId);
     }).toList();
+
+    return topLevel.map(withReplies).toList();
   }
 
   Future<String?> getPostIdForCommentActivity(String commentId) async {

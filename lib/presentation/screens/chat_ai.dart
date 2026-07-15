@@ -30,11 +30,16 @@ class _ChatAiPageState extends State<ChatAiPage> {
   bool _showEmoji = false;
 
   String get _animalLabel {
-    if (widget.animal == 'guinea-pig') return 'Guinea Pig';
-    return widget.animal[0].toUpperCase() + widget.animal.substring(1);
+    final animal = _animalKey(widget.animal);
+    if (animal == 'guinea-pig') return 'Guinea Pig';
+    return animal[0].toUpperCase() + animal.substring(1);
   }
 
-  String get _animalAsset => 'assets/images/${widget.animal}.png';
+  String get _animalAsset => 'assets/images/${_animalKey(widget.animal)}.png';
+
+  String _animalKey(String animal) {
+    return animal.trim().toLowerCase().replaceAll(' ', '-');
+  }
 
   @override
   void initState() {
@@ -69,7 +74,11 @@ class _ChatAiPageState extends State<ChatAiPage> {
     if (text.isEmpty || widget.controller.isSending) return;
     _textController.clear();
     setState(() => _showEmoji = false);
-    widget.controller.sendMessage(widget.session.id, text, widget.animal);
+    widget.controller.sendMessage(
+      widget.session.id,
+      text,
+      _animalKey(widget.animal),
+    );
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -78,7 +87,7 @@ class _ChatAiPageState extends State<ChatAiPage> {
     await widget.controller.sendImage(
       widget.session.id,
       File(picked.path),
-      widget.animal,
+      _animalKey(widget.animal),
     );
   }
 

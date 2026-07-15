@@ -12,6 +12,7 @@ class Post {
   final bool isLiked;
   final bool isSaved;
   final String? authorName;
+  final String? authorAvatarUrl;
   final String? authorRole;
   final DateTime createdAt;
 
@@ -28,9 +29,46 @@ class Post {
     this.isLiked = false,
     this.isSaved = false,
     this.authorName,
+    this.authorAvatarUrl,
     this.authorRole,
     required this.createdAt,
   });
+
+  Post copyWith({
+    String? id,
+    String? patientId,
+    String? content,
+    List<String>? imageUrls,
+    bool? isDeleted,
+    bool? isArchived,
+    String? deletedBy,
+    int? likeCount,
+    int? commentCount,
+    bool? isLiked,
+    bool? isSaved,
+    String? authorName,
+    String? authorAvatarUrl,
+    String? authorRole,
+    DateTime? createdAt,
+  }) {
+    return Post(
+      id: id ?? this.id,
+      patientId: patientId ?? this.patientId,
+      content: content ?? this.content,
+      imageUrls: imageUrls ?? this.imageUrls,
+      isDeleted: isDeleted ?? this.isDeleted,
+      isArchived: isArchived ?? this.isArchived,
+      deletedBy: deletedBy ?? this.deletedBy,
+      likeCount: likeCount ?? this.likeCount,
+      commentCount: commentCount ?? this.commentCount,
+      isLiked: isLiked ?? this.isLiked,
+      isSaved: isSaved ?? this.isSaved,
+      authorName: authorName ?? this.authorName,
+      authorAvatarUrl: authorAvatarUrl ?? this.authorAvatarUrl,
+      authorRole: authorRole ?? this.authorRole,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 
   factory Post.fromMap(
     Map<String, dynamic> map, {
@@ -56,6 +94,7 @@ class Post {
       isLiked: isLiked,
       isSaved: isSaved,
       authorName: map['author_name'],
+      authorAvatarUrl: map['author_avatar_url'],
       authorRole: map['author_role'],
       createdAt: DateTime.parse(map['created_at']),
     );

@@ -53,14 +53,14 @@ class PatientRepository {
     if (ids.isEmpty) return [];
     return await supabase
         .from('patients')
-        .select('id, name')
+        .select('id, name, avatar_url')
         .inFilter('id', ids);
   }
 
   Future<Map<String, dynamic>?> findNameById(String id) async {
     return await supabase
         .from('patients')
-        .select('name')
+        .select('name, avatar_url')
         .eq('id', id)
         .maybeSingle();
   }

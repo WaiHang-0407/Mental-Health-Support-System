@@ -200,7 +200,7 @@ class _JournalMainPageState extends State<JournalMainPage> {
       boxShadow: selected
           ? [
               BoxShadow(
-                color: Colors.white.withOpacity(0.45),
+                color: Colors.white.withValues(alpha: 0.45),
                 blurRadius: 10,
                 spreadRadius: 1,
               ),
@@ -228,35 +228,45 @@ class _JournalMainPageState extends State<JournalMainPage> {
   @override
   Widget build(BuildContext context) {
     return GradientBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          title: _selectionMode
-              ? Text(
-                  '${_selectedJournalIds.length} selected',
-                  style: const TextStyle(color: Colors.white),
+      child: MainTabSwipeWrapper(
+        currentIndex: 1,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            title: _selectionMode
+                ? Text(
+                    '${_selectedJournalIds.length} selected',
+                    style: const TextStyle(color: Colors.white),
+                  )
+                : const Text(
+                    'Journal',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+            leading: _selectionMode
+                ? IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: _clearSelection,
+                  )
+                : null,
+            actions: [
+              if (_selectionMode)
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: _confirmDeleteSelected,
                 )
-              : null,
-          leading: _selectionMode
-              ? IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
-                  onPressed: _clearSelection,
-                )
-              : null,
-          actions: [
-            if (_selectionMode)
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: _confirmDeleteSelected,
-              )
-            else
-              IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
-          ],
-        ),
-        bottomNavigationBar: BottomNavBar(currentIndex: 1),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : ListView(
+              else
+                IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
+            ],
+          ),
+          bottomNavigationBar: BottomNavBar(currentIndex: 1),
+          body: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
                   padding: const EdgeInsets.fromLTRB(20, 6, 20, 100),
                   children: [
                     const Text(
@@ -383,6 +393,7 @@ class _JournalMainPageState extends State<JournalMainPage> {
                     }),
                   ],
                 ),
+        ),
       ),
     );
   }

@@ -193,9 +193,10 @@ class _WeeklyReportPageState extends State<WeeklyReportPage> {
                       alignment: Alignment.centerLeft,
                       padding: EdgeInsets.zero,
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new,
-                        color: Colors.white,
+                      icon: Image.asset(
+                        'assets/images/back.png',
+                        height: 24,
+                        width: 24,
                       ),
                     ),
 

@@ -6,16 +6,17 @@ import '../../models/post.dart';
 import '../../models/comment.dart';
 import '../../widgets/gradient_background.dart';
 import '../../widgets/image_viewer.dart';
-import 'profile.dart';
 import 'public_profile.dart';
 
 class PostDetailPage extends StatefulWidget {
   final Post post;
   final PostController postController;
+  final bool focusCommentOnOpen;
   const PostDetailPage({
     super.key,
     required this.post,
     required this.postController,
+    this.focusCommentOnOpen = false,
   });
 
   @override
@@ -25,22 +26,45 @@ class PostDetailPage extends StatefulWidget {
 class _PostDetailPageState extends State<PostDetailPage> {
   final CommentController _commentController = CommentController();
   final TextEditingController _commentInput = TextEditingController();
+  final FocusNode _commentFocusNode = FocusNode();
   final String _uid = Supabase.instance.client.auth.currentUser!.id;
   String? _replyingToId;
   String? _replyingToName;
+
+  Post get _currentPost {
+    for (final post in [
+      ...widget.postController.posts,
+      ...widget.postController.myPosts,
+    ]) {
+      if (post.id == widget.post.id) return post;
+    }
+    return widget.post;
+  }
 
   @override
   void initState() {
     super.initState();
     _commentController.loadComments(widget.post.id);
     _commentController.addListener(() => setState(() {}));
+    widget.postController.addListener(_refreshPostState);
+    if (widget.focusCommentOnOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _commentFocusNode.requestFocus();
+      });
+    }
   }
 
   @override
   void dispose() {
+    widget.postController.removeListener(_refreshPostState);
     _commentController.dispose();
     _commentInput.dispose();
+    _commentFocusNode.dispose();
     super.dispose();
+  }
+
+  void _refreshPostState() {
+    if (mounted) setState(() {});
   }
 
   void _submitComment() async {
@@ -143,18 +167,35 @@ class _PostDetailPageState extends State<PostDetailPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ...reasons.map(
-                (r) => RadioListTile<String>(
-                  value: r,
-                  groupValue: selected,
-                  onChanged: (v) => setS(() => selected = v),
-                  title: Text(
-                    r,
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ...reasons.map((r) {
+                final isSelected = selected == r;
+                return InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => setS(() => selected = r),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isSelected
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          color: isSelected ? Colors.white : Colors.white54,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          r,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  activeColor: Colors.white,
-                ),
-              ),
+                );
+              }),
               if (selected == 'Other') ...[
                 const SizedBox(height: 8),
                 TextField(
@@ -284,113 +325,259 @@ class _PostDetailPageState extends State<PostDetailPage> {
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
-        body: Column(
-          children: [
-            Expanded(
-              child: _commentController.isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
+        body: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              Expanded(
+                child: _commentController.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+                        children: [
+                          _buildPostHeader(),
+                          const SizedBox(height: 18),
+                          _buildCommentsHeader(),
+                          const SizedBox(height: 12),
+                          ..._commentController.comments.map(_buildCommentTile),
+                          if (_commentController.comments.isEmpty)
+                            _buildEmptyComments(),
+                        ],
+                      ),
+              ),
+              _buildComposer(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPostHeader() {
+    final post = _currentPost;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => _openProfile(post.patientId, post.authorName),
+                child: _authorAvatar(post, radius: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        // Post content
-                        _buildPostHeader(),
-                        const Divider(color: Colors.white12, height: 24),
-                        // Comments
-                        ..._commentController.comments.map(_buildCommentTile),
-                        if (_commentController.comments.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.all(16),
+                        Flexible(
+                          child: GestureDetector(
+                            onTap: () =>
+                                _openProfile(post.patientId, post.authorName),
                             child: Text(
-                              'No comments yet.',
-                              style: TextStyle(color: Colors.white38),
-                              textAlign: TextAlign.center,
+                              post.authorName ?? 'Anonymous',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
                             ),
                           ),
+                        ),
+                        if (post.authorRole == 'listener' ||
+                            post.authorRole == 'patient_listener') ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blueAccent.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.blueAccent.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                            ),
+                            child: const Text(
+                              'Listener',
+                              style: TextStyle(
+                                color: Colors.blueAccent,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
-            ),
-            // Reply indicator
-            if (_replyingToName != null)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                color: Colors.white.withOpacity(0.05),
-                child: Row(
-                  children: [
+                    const SizedBox(height: 2),
                     Text(
-                      'Replying to $_replyingToName',
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => setState(() {
-                        _replyingToId = null;
-                        _replyingToName = null;
-                      }),
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.white38,
-                        size: 16,
+                      _timeAgo(post.createdAt),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.52),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
               ),
-            // Comment input
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-              color: Colors.transparent,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                        ),
-                      ),
-                      child: TextField(
-                        controller: _commentInput,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: _replyingToName != null
-                              ? 'Reply to $_replyingToName...'
-                              : 'Add a comment...',
-                          hintStyle: const TextStyle(color: Colors.white38),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            post.content,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              height: 1.42,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (post.imageUrls.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _buildPostImages(post),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _postMetric(
+                icon: post.isLiked ? Icons.favorite : Icons.favorite_border,
+                text: '${post.likeCount}',
+                color: post.isLiked
+                    ? Colors.redAccent
+                    : Colors.white.withValues(alpha: 0.72),
+                onTap: () => widget.postController.toggleLike(post),
+              ),
+              const SizedBox(width: 12),
+              _postMetric(
+                icon: Icons.chat_bubble_outline,
+                text: '${_visibleCommentCount()}',
+                color: Colors.white.withValues(alpha: 0.72),
+                onTap: () => _commentFocusNode.requestFocus(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostImages(Post post) {
+    if (post.imageUrls.length == 1) {
+      return GestureDetector(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                ImageViewer(imageUrls: post.imageUrls, initialIndex: 0),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Image.network(
+            post.imageUrls[0],
+            width: double.infinity,
+            height: 240,
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: post.imageUrls.length == 2 ? 2 : 3,
+          crossAxisSpacing: 3,
+          mainAxisSpacing: 3,
+        ),
+        itemCount: post.imageUrls.length > 5 ? 5 : post.imageUrls.length,
+        itemBuilder: (_, i) {
+          final isLast = i == 4 && post.imageUrls.length > 5;
+          return GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    ImageViewer(imageUrls: post.imageUrls, initialIndex: i),
+              ),
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.network(post.imageUrls[i], fit: BoxFit.cover),
+                if (isLast)
+                  Container(
+                    color: Colors.black54,
+                    child: Center(
+                      child: Text(
+                        '+${post.imageUrls.length - 4}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: _submitComment,
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.send_rounded,
-                        color: Colors.black87,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _postMetric({
+    required IconData icon,
+    required String text,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 6),
+            Text(
+              text,
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ],
@@ -399,187 +586,241 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  Widget _buildPostHeader() {
-    final post = widget.post;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildCommentsHeader() {
+    final count = _visibleCommentCount();
+    return Row(
       children: [
-        Row(
-          children: [
-            GestureDetector(
-              onTap: () => _openProfile(post.patientId, post.authorName),
-              child: CircleAvatar(
-                backgroundColor: Colors.white24,
-                radius: 20,
-                child: Text(
-                  (post.authorName ?? 'A')[0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () =>
-                            _openProfile(post.patientId, post.authorName),
-                        child: Text(
-                          post.authorName ?? 'Anonymous',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      if (post.authorRole == 'listener' ||
-                          post.authorRole == 'patient_listener')
-                        Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.blueAccent.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Colors.blueAccent.withOpacity(0.5),
-                            ),
-                          ),
-                          child: const Text(
-                            'Listener',
-                            style: TextStyle(
-                              color: Colors.blueAccent,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _timeAgo(post.createdAt),
-                    style: const TextStyle(color: Colors.white38, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        const Text(
+          'Comments',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+          ),
         ),
-        const SizedBox(height: 12),
-        Text(
-          post.content,
-          style: const TextStyle(color: Colors.white, fontSize: 15),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.82),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
-        if (post.imageUrls.isNotEmpty) ...[
+      ],
+    );
+  }
+
+  Widget _buildEmptyComments() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 30),
+      child: Column(
+        children: [
+          Icon(
+            Icons.chat_bubble_outline,
+            color: Colors.white.withValues(alpha: 0.55),
+            size: 34,
+          ),
           const SizedBox(height: 10),
-          if (post.imageUrls.length == 1)
-            GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      ImageViewer(imageUrls: post.imageUrls, initialIndex: 0),
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  post.imageUrls[0],
-                  width: double.infinity,
-                  height: 220,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            )
-          else
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: post.imageUrls.length == 2 ? 2 : 3,
-                crossAxisSpacing: 2,
-                mainAxisSpacing: 2,
-              ),
-              itemCount: post.imageUrls.length > 5 ? 5 : post.imageUrls.length,
-              itemBuilder: (_, i) {
-                final isLast = i == 4 && post.imageUrls.length > 5;
-                return GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ImageViewer(
-                        imageUrls: post.imageUrls,
-                        initialIndex: i,
-                      ),
-                    ),
-                  ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Image.network(post.imageUrls[i], fit: BoxFit.cover),
-                      if (isLast)
-                        Container(
-                          color: Colors.black54,
-                          child: Center(
-                            child: Text(
-                              '+${post.imageUrls.length - 4}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
+          const Text(
+            'No comments yet',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
             ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Start the conversation with something kind or helpful.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.55),
+              fontSize: 13,
+              height: 1.35,
+            ),
+          ),
         ],
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            GestureDetector(
-              onTap: () => widget.postController.toggleLike(post),
+      ),
+    );
+  }
+
+  Widget _buildComposer() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF10182E).withValues(alpha: 0.58),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_replyingToName != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: Row(
                 children: [
                   Icon(
-                    post.isLiked ? Icons.favorite : Icons.favorite_border,
-                    color: post.isLiked ? Colors.redAccent : Colors.white54,
-                    size: 20,
+                    Icons.reply_rounded,
+                    color: Colors.white.withValues(alpha: 0.62),
+                    size: 16,
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${post.likeCount}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 13),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Replying to $_replyingToName',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.72),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => setState(() {
+                      _replyingToId = null;
+                      _replyingToName = null;
+                    }),
+                    borderRadius: BorderRadius.circular(999),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.close,
+                        color: Colors.white.withValues(alpha: 0.52),
+                        size: 16,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 16),
-            const Icon(
-              Icons.chat_bubble_outline,
-              color: Colors.white54,
-              size: 20,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: TextField(
+                    controller: _commentInput,
+                    focusNode: _commentFocusNode,
+                    style: const TextStyle(color: Colors.white),
+                    minLines: 1,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: _replyingToName != null
+                          ? 'Write a reply...'
+                          : 'Add a comment...',
+                      hintStyle: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.42),
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Material(
+                color: Colors.white,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  onTap: _submitComment,
+                  customBorder: const CircleBorder(),
+                  child: const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Icon(
+                      Icons.send_rounded,
+                      color: Color(0xFF10182E),
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _initialAvatar(String? name, {required double radius}) {
+    return CircleAvatar(
+      backgroundColor: Colors.white.withValues(alpha: 0.16),
+      radius: radius,
+      child: Text(
+        (name == null || name.isEmpty ? 'A' : name[0]).toUpperCase(),
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w900,
+          fontSize: radius * 0.72,
+        ),
+      ),
+    );
+  }
+
+  Widget _authorAvatar(Post post, {required double radius}) {
+    final avatarUrl = post.authorAvatarUrl;
+    if (avatarUrl != null && avatarUrl.trim().isNotEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Colors.white.withValues(alpha: 0.16),
+        backgroundImage: NetworkImage(avatarUrl),
+      );
+    }
+
+    return _initialAvatar(post.authorName, radius: radius);
+  }
+
+  Widget _commentAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    final actionColor = color ?? Colors.white.withValues(alpha: 0.48);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: actionColor),
             const SizedBox(width: 4),
             Text(
-              '${_visibleCommentCount()}',
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
+              label,
+              style: TextStyle(
+                color: actionColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 
@@ -599,189 +840,301 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   Widget _buildCommentTile(Comment comment) {
     final isDeleted = comment.isDeleted;
-    return Column(
-      children: [
-        GestureDetector(
-          onLongPress: isDeleted ? null : () => _showCommentOptions(comment),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GestureDetector(
-                  onTap: isDeleted
-                      ? null
-                      : () =>
-                            _openProfile(comment.patientId, comment.authorName),
-                  child: CircleAvatar(
-                    backgroundColor: Colors.white24,
-                    radius: 14,
-                    child: Text(
-                      isDeleted
-                          ? '?'
-                          : (comment.authorName ?? 'A')[0].toUpperCase(),
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!isDeleted)
-                        GestureDetector(
-                          onTap: () => _openProfile(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onLongPress: isDeleted ? null : () => _showCommentOptions(comment),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: isDeleted
+                        ? null
+                        : () => _openProfile(
                             comment.patientId,
                             comment.authorName,
                           ),
-                          child: Text(
-                            comment.authorName ?? 'Anonymous',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      Text(
-                        isDeleted
-                            ? 'This comment was deleted'
-                            : comment.content,
-                        style: TextStyle(
-                          color: isDeleted ? Colors.white30 : Colors.white70,
-                          fontStyle: isDeleted
-                              ? FontStyle.italic
-                              : FontStyle.normal,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (!isDeleted) ...[
-                        const SizedBox(height: 4),
+                    child: _initialAvatar(
+                      isDeleted ? null : comment.authorName,
+                      radius: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            GestureDetector(
-                              onTap: () => _commentController.toggleLike(
-                                comment.id,
-                                comment.isLiked,
-                                widget.post.id,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    comment.isLiked
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: comment.isLiked
-                                        ? Colors.redAccent
-                                        : Colors.white38,
-                                    size: 14,
-                                  ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    '${comment.likeCount}',
-                                    style: const TextStyle(
-                                      color: Colors.white38,
-                                      fontSize: 12,
+                            Expanded(
+                              child: isDeleted
+                                  ? Text(
+                                      'Deleted comment',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.35,
+                                        ),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    )
+                                  : GestureDetector(
+                                      onTap: () => _openProfile(
+                                        comment.patientId,
+                                        comment.authorName,
+                                      ),
+                                      child: Text(
+                                        comment.authorName ?? 'Anonymous',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
                             ),
-                            const SizedBox(width: 12),
                             Text(
                               _timeAgo(comment.createdAt),
-                              style: const TextStyle(
-                                color: Colors.white30,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.35),
                                 fontSize: 11,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Replies
-        ...comment.replies.map(
-          (reply) => Padding(
-            padding: const EdgeInsets.only(left: 38),
-            child: GestureDetector(
-              onLongPress: reply.isDeleted
-                  ? null
-                  : () => _showCommentOptions(reply),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: Colors.white.withOpacity(0.15),
-                      radius: 12,
-                      child: Text(
-                        reply.isDeleted
-                            ? '?'
-                            : (reply.authorName ?? 'A')[0].toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
+                        const SizedBox(height: 6),
+                        Text(
+                          isDeleted
+                              ? 'This comment was deleted'
+                              : comment.content,
+                          style: TextStyle(
+                            color: isDeleted
+                                ? Colors.white.withValues(alpha: 0.34)
+                                : Colors.white.withValues(alpha: 0.78),
+                            fontStyle: isDeleted
+                                ? FontStyle.italic
+                                : FontStyle.normal,
+                            fontSize: 14,
+                            height: 1.34,
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (!reply.isDeleted)
-                            Text(
-                              reply.authorName ?? 'Anonymous',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
+                        if (!isDeleted) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              _commentAction(
+                                icon: comment.isLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                label: '${comment.likeCount}',
+                                color: comment.isLiked
+                                    ? Colors.redAccent
+                                    : null,
+                                onTap: () => _commentController.toggleLike(
+                                  comment.id,
+                                  comment.isLiked,
+                                  widget.post.id,
+                                ),
                               ),
-                            ),
-                          Text(
-                            reply.isDeleted
-                                ? 'This reply was deleted'
-                                : reply.content,
-                            style: TextStyle(
-                              color: reply.isDeleted
-                                  ? Colors.white30
-                                  : Colors.white70,
-                              fontStyle: reply.isDeleted
-                                  ? FontStyle.italic
-                                  : FontStyle.normal,
-                              fontSize: 13,
-                            ),
+                              const SizedBox(width: 14),
+                              _commentAction(
+                                icon: Icons.reply_rounded,
+                                label: 'Reply',
+                                onTap: () {
+                                  setState(() {
+                                    _replyingToId = comment.id;
+                                    _replyingToName = comment.authorName;
+                                  });
+                                },
+                              ),
+                            ],
                           ),
                         ],
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-        ),
-      ],
+          if (comment.replies.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 40, top: 8),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Column(
+                    children: comment.replies
+                        .map((reply) => _buildReplyTile(reply, depth: 1))
+                        .toList(),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReplyTile(Comment reply, {required int depth}) {
+    final childIndent = depth >= 2 ? 16.0 : 28.0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onLongPress: reply.isDeleted
+                ? null
+                : () => _showCommentOptions(reply),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _initialAvatar(
+                    reply.isDeleted ? null : reply.authorName,
+                    radius: 13,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: reply.isDeleted
+                                  ? Text(
+                                      'Deleted reply',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.32,
+                                        ),
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                      ),
+                                    )
+                                  : Text(
+                                      reply.authorName ?? 'Anonymous',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                            ),
+                            Text(
+                              _timeAgo(reply.createdAt),
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.32),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          reply.isDeleted
+                              ? 'This reply was deleted'
+                              : reply.content,
+                          style: TextStyle(
+                            color: reply.isDeleted
+                                ? Colors.white.withValues(alpha: 0.32)
+                                : Colors.white.withValues(alpha: 0.72),
+                            fontStyle: reply.isDeleted
+                                ? FontStyle.italic
+                                : FontStyle.normal,
+                            fontSize: 13,
+                            height: 1.32,
+                          ),
+                        ),
+                        if (!reply.isDeleted) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              _commentAction(
+                                icon: reply.isLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                label: '${reply.likeCount}',
+                                color: reply.isLiked ? Colors.redAccent : null,
+                                onTap: () => _commentController.toggleLike(
+                                  reply.id,
+                                  reply.isLiked,
+                                  widget.post.id,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              _commentAction(
+                                icon: Icons.reply_rounded,
+                                label: 'Reply',
+                                onTap: () {
+                                  setState(() {
+                                    _replyingToId = reply.id;
+                                    _replyingToName = reply.authorName;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (reply.replies.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(left: childIndent, top: 8),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Column(
+                    children: [
+                      ...reply.replies.map(
+                        (child) => _buildReplyTile(child, depth: depth + 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
   void _openProfile(String patientId, String? fallbackName) {
-    if (patientId == _uid) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ProfilePage()),
-      );
-      return;
-    }
-
     Navigator.push(
       context,
       MaterialPageRoute(

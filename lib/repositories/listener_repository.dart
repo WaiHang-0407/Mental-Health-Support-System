@@ -83,35 +83,7 @@ class ListenerRepository {
           .eq('request_status', 'pending')
           .order('started_at', ascending: false);
 
-      final pendingRequests = <Map<String, dynamic>>[];
-
-      for (final row in data as List) {
-        final request = Map<String, dynamic>.from(row as Map<String, dynamic>);
-        final listenerId = request['listener_id']?.toString();
-
-        if (listenerId == null || listenerId.isEmpty) {
-          pendingRequests.add(request);
-          continue;
-        }
-
-        final listenerData = await supabase
-            .from('listener')
-            .select()
-            .eq('id', listenerId)
-            .maybeSingle();
-
-        if (listenerData != null) {
-          request['listener_name'] =
-              listenerData['name']?.toString() ?? 'Listener';
-          request['listener_profile_url'] = listenerData['profile_url']
-              ?.toString();
-          request['listener_bio'] = listenerData['bio']?.toString();
-        }
-
-        pendingRequests.add(request);
-      }
-
-      return pendingRequests;
+      return await _attachListenerDetails(data as List);
     } catch (e) {
       debugPrint('Get pending patient listener requests error: $e');
       return [];
@@ -130,39 +102,43 @@ class ListenerRepository {
           .eq('status', 'active')
           .order('accepted_at', ascending: false);
 
-      final activeRequests = <Map<String, dynamic>>[];
-
-      for (final row in data as List) {
-        final request = Map<String, dynamic>.from(row as Map<String, dynamic>);
-        final listenerId = request['listener_id']?.toString();
-
-        if (listenerId == null || listenerId.isEmpty) {
-          activeRequests.add(request);
-          continue;
-        }
-
-        final listenerData = await supabase
-            .from('listener')
-            .select()
-            .eq('id', listenerId)
-            .maybeSingle();
-
-        if (listenerData != null) {
-          request['listener_name'] =
-              listenerData['name']?.toString() ?? 'Listener';
-          request['listener_profile_url'] = listenerData['profile_url']
-              ?.toString();
-          request['listener_bio'] = listenerData['bio']?.toString();
-        }
-
-        activeRequests.add(request);
-      }
-
-      return activeRequests;
+      return await _attachListenerDetails(data as List);
     } catch (e) {
       debugPrint('Get active patient listener requests error: $e');
       return [];
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _attachListenerDetails(List rows) async {
+    final requests = <Map<String, dynamic>>[];
+
+    for (final row in rows) {
+      final request = Map<String, dynamic>.from(row as Map<String, dynamic>);
+      final listenerId = request['listener_id']?.toString();
+
+      if (listenerId == null || listenerId.isEmpty) {
+        requests.add(request);
+        continue;
+      }
+
+      final listenerData = await supabase
+          .from('listener')
+          .select()
+          .eq('id', listenerId)
+          .maybeSingle();
+
+      if (listenerData != null) {
+        request['listener_name'] =
+            listenerData['name']?.toString() ?? 'Listener';
+        request['listener_profile_url'] =
+            listenerData['profile_url']?.toString();
+        request['listener_bio'] = listenerData['bio']?.toString();
+      }
+
+      requests.add(request);
+    }
+
+    return requests;
   }
 
   Future<void> cancelRequest(String conversationId) async {
@@ -357,6 +333,7 @@ class ListenerRepository {
     final updated = await supabase
         .from('listener')
         .update(normalizedFields)
+        .eq('id', listenerId)
         .eq('user_id', currentUserId)
         .select()
         .maybeSingle();
@@ -559,30 +536,32 @@ class ListenerRepository {
   }
 
   Future<void> _updateListenerAverageRating(String listenerId) async {
-    final ratedSessions = await supabase
-        .from('listener_conversation')
-        .select('patient_rating')
-        .eq('listener_id', listenerId)
-        .eq('status', 'closed')
-        .not('patient_rating', 'is', null);
+    try {
+      final ratedSessions = await supabase
+          .from('listener_conversation')
+          .select('patient_rating')
+          .eq('listener_id', listenerId)
+          .eq('status', 'closed')
+          .not('patient_rating', 'is', null);
 
-    final ratings = (ratedSessions as List)
-        .map((e) => (e['patient_rating'] as num).toDouble())
-        .toList();
+      final ratings = (ratedSessions as List)
+          .map((e) => (e['patient_rating'] as num).toDouble())
+          .toList();
 
-    if (ratings.isEmpty) {
-      throw Exception('No saved ratings found for this listener.');
+      if (ratings.isEmpty) return;
+
+      final average =
+          ratings.reduce((value, element) => value + element) / ratings.length;
+
+      await supabase
+          .from('listener')
+          .update({
+            'rating': double.parse(average.toStringAsFixed(1)),
+            'total_reviews': ratings.length,
+          })
+          .eq('id', listenerId);
+    } catch (e) {
+      debugPrint('Update listener average rating error: $e');
     }
-
-    final average =
-        ratings.reduce((value, element) => value + element) / ratings.length;
-
-    await supabase
-        .from('listener')
-        .update({
-          'rating': double.parse(average.toStringAsFixed(1)),
-          'total_reviews': ratings.length,
-        })
-        .eq('id', listenerId);
   }
 }

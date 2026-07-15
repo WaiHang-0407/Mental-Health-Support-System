@@ -1,4 +1,5 @@
 import '../models/post.dart';
+import '../models/patient.dart';
 import '../models/user_activity_log.dart';
 import 'comment_table_repository.dart';
 import 'patient_follows_table_repository.dart';
@@ -68,5 +69,52 @@ class ProfileRepository {
 
   Future<int> getFollowingCount(String patientId) async {
     return _patientFollowsTable.followingCount(patientId);
+  }
+
+  Future<List<PatientModel>> getFollowers(String patientId) async {
+    final data = await supabase
+        .from('patient_follows')
+        .select('follower_id')
+        .eq('following_id', patientId);
+
+    final ids = (data as List)
+        .map((item) => item['follower_id']?.toString())
+        .whereType<String>()
+        .toList();
+
+    return _getPatientsByIds(ids);
+  }
+
+  Future<List<PatientModel>> getFollowing(String patientId) async {
+    final data = await supabase
+        .from('patient_follows')
+        .select('following_id')
+        .eq('follower_id', patientId);
+
+    final ids = (data as List)
+        .map((item) => item['following_id']?.toString())
+        .whereType<String>()
+        .toList();
+
+    return _getPatientsByIds(ids);
+  }
+
+  Future<List<PatientModel>> _getPatientsByIds(List<String> ids) async {
+    if (ids.isEmpty) return [];
+
+    final data = await supabase
+        .from('patients')
+        .select(
+          'id, name, gender, dob, phoneno, condition, fav_animal, fav_activity, avatar_url',
+        )
+        .inFilter('id', ids);
+
+    final patients = (data as List)
+        .map((item) => PatientModel.fromMap(Map<String, dynamic>.from(item)))
+        .toList();
+
+    final order = {for (var i = 0; i < ids.length; i++) ids[i]: i};
+    patients.sort((a, b) => (order[a.id] ?? 0).compareTo(order[b.id] ?? 0));
+    return patients;
   }
 }

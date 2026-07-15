@@ -20,7 +20,7 @@ class Sponsorship {
   factory Sponsorship.fromMap(Map<String, dynamic> map) {
     return Sponsorship(
       id: map['id'],
-      activityId: map['activity_id'],
+      activityId: map['activity_id'] ?? '',
       sponsorName: map['sponsor_name'],
       description: map['description'],
       isDeleted: map['is_deleted'] ?? false,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../presentation/screens/listener_dashboard.dart';
+
 import '../presentation/screens/community.dart';
+import '../presentation/screens/listener_dashboard.dart';
 import '../presentation/screens/profile.dart';
 
 class ListenerBottomNavBar extends StatefulWidget {
@@ -42,20 +43,12 @@ class _ListenerBottomNavBarState extends State<ListenerBottomNavBar> {
     await Future.delayed(_animationDuration);
     if (!context.mounted) return;
 
-    Widget page;
-    switch (index) {
-      case 0:
-        page = const ListenerDashboardPage();
-        break;
-      case 1:
-        page = const CommunityPage(useListenerBottomNav: true);
-        break;
-      case 2:
-        page = const ProfilePage(useListenerBottomNav: true);
-        break;
-      default:
-        page = const ListenerDashboardPage();
-    }
+    final page = switch (index) {
+      0 => const ListenerDashboardPage(),
+      1 => const CommunityPage(useListenerBottomNav: true),
+      2 => const ProfilePage(useListenerBottomNav: true),
+      _ => const ListenerDashboardPage(),
+    };
 
     Navigator.pushReplacement(
       context,

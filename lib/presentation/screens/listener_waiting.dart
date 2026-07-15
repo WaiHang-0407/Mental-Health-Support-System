@@ -28,7 +28,7 @@ class _ListenerWaitingPageState extends State<ListenerWaitingPage> {
   String _status = 'pending';
   bool _isOpeningChat = false;
   static const String _listenerDeniedMessage =
-      'Looks like your listener is busy at the moment :( its ok ,you can pick another listener!';
+      'Looks like your listener is busy at the moment. It is okay, you can pick another listener.';
 
   @override
   void initState() {
@@ -82,12 +82,14 @@ class _ListenerWaitingPageState extends State<ListenerWaitingPage> {
     } else if (status == 'rejected') {
       _timer?.cancel();
       setState(() => _status = 'rejected');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text(_listenerDeniedMessage)));
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(_listenerDeniedMessage)),
+      );
+
+      Navigator.pop(context, true);
+    } else if (status == 'cancelled') {
+      _timer?.cancel();
     }
   }
 
@@ -168,7 +170,7 @@ class _ListenerWaitingPageState extends State<ListenerWaitingPage> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+            icon: Image.asset('assets/images/back.png', height: 24, width: 24),
             onPressed: () => Navigator.pop(context),
           ),
           title: const Text(
@@ -182,14 +184,18 @@ class _ListenerWaitingPageState extends State<ListenerWaitingPage> {
             child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
+                color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withOpacity(0.12)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('🎧', style: TextStyle(fontSize: 52)),
+                  const Icon(
+                    Icons.headphones_rounded,
+                    color: Colors.white,
+                    size: 52,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     widget.listener.name,
@@ -225,7 +231,7 @@ class _ListenerWaitingPageState extends State<ListenerWaitingPage> {
                     ),
                   ] else
                     ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => Navigator.pop(context, true),
                       child: const Text('Back'),
                     ),
                 ],

@@ -32,7 +32,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
   bool _isStartingCheckout = false;
 
   static const String _listenerDeniedMessage =
-      'Looks like your listener is busy at the moment :( its ok ,you can pick another listener!';
+      'Looks like your listener is busy at the moment. It is okay, you can pick another listener.';
 
   // All available animals — matches your assets
   final List<String> _allAnimals = [
@@ -70,13 +70,19 @@ class _ChatMainPageState extends State<ChatMainPage> {
   }
 
   String _assetForAnimal(String? animal) {
-    if (animal == null) return 'assets/images/dog.png';
-    return 'assets/images/$animal.png';
+    final key = _animalKey(animal);
+    return 'assets/images/$key.png';
   }
 
   String _labelForAnimal(String animal) {
-    if (animal == 'guinea-pig') return 'Guinea Pig';
-    return animal[0].toUpperCase() + animal.substring(1);
+    final key = _animalKey(animal);
+    if (key == 'guinea-pig') return 'Guinea Pig';
+    return key[0].toUpperCase() + key.substring(1);
+  }
+
+  String _animalKey(String? animal) {
+    final value = (animal ?? 'dog').trim().toLowerCase();
+    return value.replaceAll(' ', '-');
   }
 
   Future<void> _loadSubscriptionStatus() async {
@@ -99,7 +105,6 @@ class _ChatMainPageState extends State<ChatMainPage> {
 
   void _listenToListenerConversationUpdates() {
     final currentUserId = supabase.auth.currentUser?.id;
-
     if (currentUserId == null) return;
 
     _listenerConversationChannel = supabase
@@ -114,8 +119,8 @@ class _ChatMainPageState extends State<ChatMainPage> {
             value: currentUserId,
           ),
           callback: (payload) async {
-            final newRecord = payload.newRecord as Map<String, dynamic>?;
-            final requestStatus = newRecord?['request_status']?.toString();
+            final requestStatus = payload.newRecord['request_status']
+                ?.toString();
 
             if (requestStatus == 'rejected' && mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -131,22 +136,14 @@ class _ChatMainPageState extends State<ChatMainPage> {
 
   Future<void> _loadPendingListenerRequests() async {
     final requests = await _listenerController.getMyPendingListenerRequests();
-
     if (!mounted) return;
-
-    setState(() {
-      _pendingListenerRequests = requests;
-    });
+    setState(() => _pendingListenerRequests = requests);
   }
 
   Future<void> _loadActiveListenerSessions() async {
     final sessions = await _listenerController.getMyActiveListenerSessions();
-
     if (!mounted) return;
-
-    setState(() {
-      _activeListenerSessions = sessions;
-    });
+    setState(() => _activeListenerSessions = sessions);
   }
 
   Future<void> _refreshListenerSections() async {
@@ -201,15 +198,14 @@ class _ChatMainPageState extends State<ChatMainPage> {
       return;
     }
 
-    if (mounted) {
-      setState(() {
-        _pendingListenerRequests.removeWhere(
-          (request) => request['id']?.toString() == conversationId,
-        );
-      });
-    }
-
+    setState(() {
+      _pendingListenerRequests.removeWhere(
+        (request) => request['id']?.toString() == conversationId,
+      );
+    });
     await _refreshListenerSections();
+
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Listener request cancelled.')),
     );
@@ -322,7 +318,8 @@ class _ChatMainPageState extends State<ChatMainPage> {
   }
 
   Future<void> _openSession(String animal) async {
-    final session = await _controller.openAnimalSession(animal);
+    final animalKey = _animalKey(animal);
+    final session = await _controller.openAnimalSession(animalKey);
     if (mounted) {
       Navigator.push(
         context,
@@ -330,7 +327,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
           builder: (_) => ChatAiPage(
             session: session,
             controller: _controller,
-            animal: animal,
+            animal: animalKey,
           ),
         ),
       );
@@ -339,6 +336,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
 
   void _showAnimalPicker() {
     final favAnimal = _controller.patient?.favAnimal;
+    final favAnimalKey = _animalKey(favAnimal);
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A2340),
@@ -367,7 +365,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
               mainAxisSpacing: 12,
               childAspectRatio: 1,
               children: _allAnimals.map((animal) {
-                final isFav = animal == favAnimal;
+                final isFav = animal == favAnimalKey;
                 final hasSession = _controller.sessions.any(
                   (s) => s.animal == animal,
                 );
@@ -379,13 +377,13 @@ class _ChatMainPageState extends State<ChatMainPage> {
                   child: Container(
                     decoration: BoxDecoration(
                       color: isFav
-                          ? Colors.white.withOpacity(0.2)
-                          : Colors.white.withOpacity(0.07),
+                          ? Colors.white.withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.07),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isFav
                             ? Colors.white
-                            : Colors.white.withOpacity(0.15),
+                            : Colors.white.withValues(alpha: 0.15),
                         width: 1.5,
                       ),
                     ),
@@ -431,100 +429,160 @@ class _ChatMainPageState extends State<ChatMainPage> {
   @override
   Widget build(BuildContext context) {
     final favAnimal = _controller.patient?.favAnimal;
+    final favAnimalKey = favAnimal == null ? null : _animalKey(favAnimal);
 
     return GradientBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
+      child: MainTabSwipeWrapper(
+        currentIndex: 2,
+        child: Scaffold(
           backgroundColor: Colors.transparent,
-          elevation: 0,
-          title: const Text(
-            'Chats',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            title: const Text(
+              'Chat',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _showAnimalPicker,
-          backgroundColor: Colors.white,
-          child: const Icon(Icons.add, color: Colors.black87),
-        ),
-        bottomNavigationBar: const BottomNavBar(currentIndex: 2),
-        body: _controller.isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                children: [
-                  if (_pendingListenerRequests.isNotEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      child: _buildPendingListenerCard(
-                        _pendingListenerRequests.first,
+          floatingActionButton: FloatingActionButton(
+            onPressed: _showAnimalPicker,
+            backgroundColor: Colors.white,
+            child: const Icon(Icons.add, color: Colors.black87),
+          ),
+          bottomNavigationBar: const BottomNavBar(currentIndex: 2),
+          body: _controller.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  children: [
+                    if (_pendingListenerRequests.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: _buildPendingListenerCard(
+                          _pendingListenerRequests.first,
+                        ),
                       ),
-                    ),
-                  ],
 
-                  // Fav animal quick-start card
-                  if (favAnimal != null)
+                    // Fav animal quick-start card
+                    if (favAnimalKey != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: GestureDetector(
+                          onTap: () => _openSession(favAnimalKey),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Image.asset(
+                                  _assetForAnimal(favAnimalKey),
+                                  height: 48,
+                                  width: 48,
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            'Mindly ${_labelForAnimal(favAnimalKey)}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.amber.withValues(
+                                                alpha: 0.2,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: const Text(
+                                              '⭐ Fav',
+                                              style: TextStyle(
+                                                color: Colors.amber,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const Text(
+                                        'Your favourite companion',
+                                        style: TextStyle(
+                                          color: Colors.white60,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.white54,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // Listener card
+                    // Listener card
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                       child: GestureDetector(
-                        onTap: () => _openSession(favAnimal),
+                        onTap: _isCheckingSubscription
+                            ? null
+                            : _openListenerPage,
                         child: Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
+                            color: Colors.white.withValues(alpha: 0.07),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.25),
+                              color: Colors.white.withValues(alpha: 0.1),
                             ),
                           ),
                           child: Row(
                             children: [
-                              Image.asset(
-                                _assetForAnimal(favAnimal),
-                                height: 48,
-                                width: 48,
-                              ),
+                              const Text('🎧', style: TextStyle(fontSize: 32)),
                               const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          'Mindly ${_labelForAnimal(favAnimal)}',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.amber.withOpacity(
-                                              0.2,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                          ),
-                                          child: const Text(
-                                            '⭐ Fav',
-                                            style: TextStyle(
-                                              color: Colors.amber,
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
                                     const Text(
-                                      'Your favourite companion',
+                                      'Talk to a Listener',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    Text(
+                                      _hasActiveSubscription
+                                          ? 'Premium access active'
+                                          : 'Premium required',
                                       style: TextStyle(
                                         color: Colors.white60,
                                         fontSize: 13,
@@ -533,9 +591,11 @@ class _ChatMainPageState extends State<ChatMainPage> {
                                   ],
                                 ),
                               ),
-                              const Icon(
-                                Icons.chevron_right,
-                                color: Colors.white54,
+                              Icon(
+                                _hasActiveSubscription
+                                    ? Icons.chevron_right
+                                    : Icons.lock_outline,
+                                color: Colors.white38,
                               ),
                             ],
                           ),
@@ -543,147 +603,93 @@ class _ChatMainPageState extends State<ChatMainPage> {
                       ),
                     ),
 
-                  // Listener card
-                  // Listener card
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: GestureDetector(
-                      onTap: _isCheckingSubscription ? null : _openListenerPage,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.07),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Text('🎧', style: TextStyle(fontSize: 32)),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Talk to a Listener',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  Text(
-                                    _hasActiveSubscription
-                                        ? 'Premium access active'
-                                        : 'Premium required',
-                                    style: TextStyle(
-                                      color: Colors.white60,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                    if (_activeListenerSessions.isNotEmpty) ...[
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Your Listener Chats',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
                             ),
-                            Icon(
-                              _hasActiveSubscription
-                                  ? Icons.chevron_right
-                                  : Icons.lock_outline,
-                              color: Colors.white38,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  if (_activeListenerSessions.isNotEmpty) ...[
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Your Listener Chats',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
                           ),
                         ),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        children: _activeListenerSessions.map((session) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _buildActiveListenerSessionCard(session),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-
-                  // Sessions list
-                  if (_controller.sessions.isNotEmpty) ...[
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Your Companions',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
+                      Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _controller.sessions.length,
-                        itemBuilder: (context, index) {
-                          final session = _controller.sessions[index];
-                          return _buildSessionTile(session);
-                        },
-                      ),
-                    ),
-                  ] else
-                    Expanded(
-                      child: Center(
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (favAnimal != null)
-                              Image.asset(
-                                _assetForAnimal(favAnimal),
-                                height: 80,
-                              ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'No conversations yet',
-                              style: TextStyle(
-                                color: Colors.white54,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const Text(
-                              'Tap + to start chatting',
-                              style: TextStyle(
-                                color: Colors.white38,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
+                          children: _activeListenerSessions.map((session) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _buildActiveListenerSessionCard(session),
+                            );
+                          }).toList(),
                         ),
                       ),
-                    ),
-                ],
-              ),
+                    ],
+
+                    // Sessions list
+                    if (_controller.sessions.isNotEmpty) ...[
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Your Companions',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _controller.sessions.length,
+                          itemBuilder: (context, index) {
+                            final session = _controller.sessions[index];
+                            return _buildSessionTile(session);
+                          },
+                        ),
+                      ),
+                    ] else
+                      Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (favAnimalKey != null)
+                                Image.asset(
+                                  _assetForAnimal(favAnimalKey),
+                                  height: 80,
+                                ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'No conversations yet',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const Text(
+                                'Tap + to start chatting',
+                                style: TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -693,7 +699,6 @@ class _ChatMainPageState extends State<ChatMainPage> {
     final listenerProfileUrl = request['listener_profile_url']?.toString();
     final listenerBio = request['listener_bio']?.toString();
     final conversationId = request['id']?.toString();
-
     final firstLetter = listenerName.isNotEmpty
         ? listenerName[0].toUpperCase()
         : '?';
@@ -727,9 +732,9 @@ class _ChatMainPageState extends State<ChatMainPage> {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.16)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
         ),
         child: Row(
           children: [
@@ -741,7 +746,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
             else
               CircleAvatar(
                 radius: 24,
-                backgroundColor: Colors.white.withOpacity(0.18),
+                backgroundColor: Colors.white.withValues(alpha: 0.18),
                 child: Text(
                   firstLetter,
                   style: const TextStyle(
@@ -779,22 +784,18 @@ class _ChatMainPageState extends State<ChatMainPage> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Waiting for acceptance…',
+                    'Waiting for acceptance...',
                     style: TextStyle(color: Colors.white60, fontSize: 12.5),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            Column(
-              children: [
-                TextButton(
-                  onPressed: conversationId == null
-                      ? null
-                      : () => _cancelPendingListenerRequest(conversationId),
-                  child: const Text('Cancel'),
-                ),
-              ],
+            TextButton(
+              onPressed: conversationId == null
+                  ? null
+                  : () => _cancelPendingListenerRequest(conversationId),
+              child: const Text('Cancel'),
             ),
           ],
         ),
@@ -805,6 +806,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
   Widget _buildActiveListenerSessionCard(Map<String, dynamic> session) {
     final listenerName = session['listener_name']?.toString() ?? 'Listener';
     final listenerProfileUrl = session['listener_profile_url']?.toString();
+    final listenerBio = session['listener_bio']?.toString();
     final conversationId = session['id']?.toString();
     final firstLetter = listenerName.isNotEmpty
         ? listenerName[0].toUpperCase()
@@ -821,7 +823,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
                     listener: ListenerModel(
                       id: session['listener_id']?.toString() ?? '',
                       name: listenerName,
-                      bio: session['listener_bio']?.toString(),
+                      bio: listenerBio,
                       profileUrl: listenerProfileUrl,
                       rating: 5.0,
                       totalSessions: 0,
@@ -839,9 +841,9 @@ class _ChatMainPageState extends State<ChatMainPage> {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
+          color: Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.12)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
         child: Row(
           children: [
@@ -853,7 +855,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
             else
               CircleAvatar(
                 radius: 22,
-                backgroundColor: Colors.white.withOpacity(0.18),
+                backgroundColor: Colors.white.withValues(alpha: 0.18),
                 child: Text(
                   firstLetter,
                   style: const TextStyle(
@@ -892,7 +894,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
   }
 
   Widget _buildSessionTile(ChatSession session) {
-    final animal = session.animal ?? 'dog';
+    final animal = _animalKey(session.animal);
     return Dismissible(
       key: Key(session.id),
       direction: DismissDirection.endToStart,
@@ -901,7 +903,7 @@ class _ChatMainPageState extends State<ChatMainPage> {
         padding: const EdgeInsets.only(right: 20),
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: Colors.redAccent.withOpacity(0.3),
+          color: Colors.redAccent.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Icon(Icons.delete_outline, color: Colors.redAccent),
@@ -954,9 +956,9 @@ class _ChatMainPageState extends State<ChatMainPage> {
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.07),
+            color: Colors.white.withValues(alpha: 0.07),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
           child: Row(
             children: [

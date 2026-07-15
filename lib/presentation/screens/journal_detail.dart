@@ -220,9 +220,10 @@ class _JournalDetailPageState extends State<JournalDetailPage> {
                 IconButton(
                   alignment: Alignment.centerLeft,
                   padding: EdgeInsets.zero,
-                  icon: const Icon(
-                    Icons.arrow_back_ios_new,
-                    color: Colors.white,
+                  icon: Image.asset(
+                    'assets/images/back.png',
+                    height: 24,
+                    width: 24,
                   ),
                   onPressed: _handleBack,
                 ),

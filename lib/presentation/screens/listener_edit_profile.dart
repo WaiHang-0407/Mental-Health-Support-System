@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../controllers/listener_controller.dart';
-import '../../../models/listener.dart';
-import '../../../widgets/gradient_background.dart';
+
+import '../../controllers/listener_controller.dart';
+import '../../widgets/gradient_background.dart';
 
 class ListenerEditProfilePage extends StatefulWidget {
   const ListenerEditProfilePage({super.key});
@@ -16,22 +16,25 @@ class _ListenerEditProfilePageState extends State<ListenerEditProfilePage> {
   final _nameController = TextEditingController();
   final _bioController = TextEditingController();
   final _introController = TextEditingController();
-  final List<String> _statusOptions = const ['available', 'busy', 'offline'];
-  String? _selectedStatus;
-  bool _isLoading = false;
+  final _statusOptions = const ['available', 'busy', 'offline'];
+  final ListenerController _controller = ListenerController();
 
-  late final ListenerController _controller;
+  String _selectedStatus = 'available';
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = ListenerController();
     _loadProfile();
   }
 
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
+
     final listener = await _controller.getMyListenerProfile();
+
+    if (!mounted) return;
+
     if (listener != null) {
       _nameController.text = listener.name;
       _bioController.text = listener.bio ?? '';
@@ -40,34 +43,34 @@ class _ListenerEditProfilePageState extends State<ListenerEditProfilePage> {
           : 'available';
       _introController.text = listener.introductionMessage ?? '';
     }
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
+
+    setState(() => _isLoading = false);
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+
     setState(() => _isLoading = true);
 
     final error = await _controller.saveListenerProfile(
       name: _nameController.text.trim(),
       bio: _bioController.text.trim(),
-      status: _selectedStatus ?? 'available',
+      status: _selectedStatus,
       introductionMessage: _introController.text.trim().isEmpty
           ? null
           : _introController.text.trim(),
     );
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (error == null) {
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error)));
-      }
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
+
+    if (error == null) {
+      Navigator.pop(context, true);
+      return;
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
   }
 
   @override
@@ -86,45 +89,37 @@ class _ListenerEditProfilePageState extends State<ListenerEditProfilePage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
+          leading: IconButton(
+            icon: Image.asset('assets/images/back.png', height: 24, width: 24),
+            onPressed: () => Navigator.pop(context),
+          ),
           title: const Text(
             'Edit Listener Profile',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
-          iconTheme: const IconThemeData(color: Colors.white),
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Form(
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                child: Form(
                   key: _formKey,
                   child: Column(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.08),
+                          color: Colors.white.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.12),
+                            color: Colors.white.withValues(alpha: 0.12),
                           ),
                         ),
                         child: Column(
                           children: [
-                            TextFormField(
+                            _buildTextField(
                               controller: _nameController,
-                              style: const TextStyle(color: Colors.white),
-                              decoration: const InputDecoration(
-                                labelText: 'Your Name',
-                                labelStyle: TextStyle(color: Colors.white70),
-                                border: OutlineInputBorder(),
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.white24),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.white70),
-                                ),
-                              ),
+                              label: 'Your Name',
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
                                   return 'Please enter your name';
@@ -133,38 +128,17 @@ class _ListenerEditProfilePageState extends State<ListenerEditProfilePage> {
                               },
                             ),
                             const SizedBox(height: 16),
-                            TextFormField(
+                            _buildTextField(
                               controller: _bioController,
-                              style: const TextStyle(color: Colors.white),
-                              decoration: const InputDecoration(
-                                labelText: 'Bio',
-                                labelStyle: TextStyle(color: Colors.white70),
-                                border: OutlineInputBorder(),
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.white24),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.white70),
-                                ),
-                              ),
+                              label: 'Bio',
                               maxLines: 3,
                             ),
                             const SizedBox(height: 16),
                             DropdownButtonFormField<String>(
-                              value: _selectedStatus,
+                              initialValue: _selectedStatus,
                               dropdownColor: const Color(0xFF1A2340),
                               style: const TextStyle(color: Colors.white),
-                              decoration: const InputDecoration(
-                                labelText: 'Status',
-                                labelStyle: TextStyle(color: Colors.white70),
-                                border: OutlineInputBorder(),
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.white24),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.white70),
-                                ),
-                              ),
+                              decoration: _inputDecoration('Status'),
                               items: _statusOptions.map((status) {
                                 return DropdownMenuItem<String>(
                                   value: status,
@@ -175,26 +149,14 @@ class _ListenerEditProfilePageState extends State<ListenerEditProfilePage> {
                                 );
                               }).toList(),
                               onChanged: (value) {
-                                setState(() {
-                                  _selectedStatus = value;
-                                });
+                                if (value == null) return;
+                                setState(() => _selectedStatus = value);
                               },
                             ),
                             const SizedBox(height: 16),
-                            TextFormField(
+                            _buildTextField(
                               controller: _introController,
-                              style: const TextStyle(color: Colors.white),
-                              decoration: const InputDecoration(
-                                labelText: 'Introduction Message',
-                                labelStyle: TextStyle(color: Colors.white70),
-                                border: OutlineInputBorder(),
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.white24),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.white70),
-                                ),
-                              ),
+                              label: 'Introduction Message',
                               maxLines: 3,
                             ),
                           ],
@@ -219,7 +181,36 @@ class _ListenerEditProfilePageState extends State<ListenerEditProfilePage> {
                     ],
                   ),
                 ),
-        ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      style: const TextStyle(color: Colors.white),
+      decoration: _inputDecoration(label),
+      maxLines: maxLines,
+      validator: validator,
+    );
+  }
+
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white70),
+      border: const OutlineInputBorder(),
+      enabledBorder: const OutlineInputBorder(
+        borderSide: BorderSide(color: Colors.white24),
+      ),
+      focusedBorder: const OutlineInputBorder(
+        borderSide: BorderSide(color: Colors.white70),
       ),
     );
   }

@@ -7,7 +7,7 @@ import '../../../widgets/gradient_background.dart';
 import 'listener_waiting.dart';
 
 class ListenerMainPage extends StatefulWidget {
-  final VoidCallback? onRequestCreated;
+  final Future<void> Function()? onRequestCreated;
 
   const ListenerMainPage({super.key, this.onRequestCreated});
 
@@ -30,8 +30,8 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
   }
 
   Future<void> _loadListeners() async {
-    final hasActiveSubscription = await _subscriptionService
-        .hasActiveSubscription();
+    final hasActiveSubscription =
+        await _subscriptionService.hasActiveSubscription();
 
     if (!mounted) return;
 
@@ -55,8 +55,8 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
   }
 
   Future<void> _openListenerChat(ListenerModel listener) async {
-    final hasActiveSubscription = await _subscriptionService
-        .hasActiveSubscription();
+    final hasActiveSubscription =
+        await _subscriptionService.hasActiveSubscription();
     if (!mounted) return;
 
     if (!hasActiveSubscription) {
@@ -145,7 +145,7 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
       return;
     }
 
-    widget.onRequestCreated?.call();
+    await widget.onRequestCreated?.call();
 
     if (!mounted) return;
 
@@ -159,7 +159,7 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
       ),
     );
 
-    widget.onRequestCreated?.call();
+    await widget.onRequestCreated?.call();
   }
 
   void _showSubscriptionRequiredMessage() {
@@ -194,7 +194,7 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
 
     return CircleAvatar(
       radius: 26,
-      backgroundColor: Colors.white.withOpacity(0.18),
+      backgroundColor: Colors.white.withValues(alpha: 0.18),
       child: Text(
         firstLetter,
         style: const TextStyle(
@@ -274,7 +274,7 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+            icon: Image.asset('assets/images/back.png', height: 24, width: 24),
             onPressed: () => Navigator.pop(context),
           ),
           title: const Text(
@@ -321,10 +321,10 @@ class _ListenerMainPageState extends State<ListenerMainPage> {
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.07),
+                          color: Colors.white.withValues(alpha: 0.07),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
+                            color: Colors.white.withValues(alpha: 0.1),
                           ),
                         ),
                         child: Row(

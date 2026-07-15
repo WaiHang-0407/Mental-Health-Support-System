@@ -27,26 +27,37 @@ class _HomePatientPageState extends State<HomePatientPage> {
     final authService = AuthService();
 
     return GradientBackground(
-      child: Scaffold(
-        appBar: AppBar(
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () async {
-                await authService.signOut();
-
-                if (!context.mounted) return;
-
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginPage()),
-                );
-              },
+      child: MainTabSwipeWrapper(
+        currentIndex: 0,
+        child: Scaffold(
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            title: const Text(
+              'Home',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ],
-        ),
-        bottomNavigationBar: BottomNavBar(currentIndex: 0),
-        body: SafeArea(
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.logout),
+                onPressed: () async {
+                  await authService.signOut();
+
+                  if (!context.mounted) return;
+
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginPage()),
+                  );
+                },
+              ),
+            ],
+          ),
+          bottomNavigationBar: BottomNavBar(currentIndex: 0),
+          body: SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -112,6 +123,7 @@ class _HomePatientPageState extends State<HomePatientPage> {
                   ),
                 ],
               ),
+            ),
           ),
         ),
       ),

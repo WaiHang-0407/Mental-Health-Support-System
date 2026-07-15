@@ -96,6 +96,8 @@ class PostController extends ChangeNotifier {
           isLiked: post.isLiked,
           isSaved: post.isSaved,
           authorName: post.authorName,
+          authorAvatarUrl: post.authorAvatarUrl,
+          authorRole: post.authorRole,
           createdAt: post.createdAt,
         );
       }
@@ -106,25 +108,21 @@ class PostController extends ChangeNotifier {
   }
 
   Future<void> toggleLike(Post post) async {
-    final i = posts.indexWhere((p) => p.id == post.id);
-    if (i == -1) return;
-    posts[i] = Post(
-      id: post.id,
-      patientId: post.patientId,
-      content: post.content,
-      imageUrls: post.imageUrls,
+    final updatedPost = post.copyWith(
       isLiked: !post.isLiked,
       likeCount: post.isLiked ? post.likeCount - 1 : post.likeCount + 1,
-      commentCount: post.commentCount,
-      isSaved: post.isSaved,
-      authorName: post.authorName,
-      createdAt: post.createdAt,
     );
+    final postIndex = posts.indexWhere((p) => p.id == post.id);
+    final myPostIndex = myPosts.indexWhere((p) => p.id == post.id);
+    if (postIndex == -1 && myPostIndex == -1) return;
+    if (postIndex != -1) posts[postIndex] = updatedPost;
+    if (myPostIndex != -1) myPosts[myPostIndex] = updatedPost;
     notifyListeners();
     try {
       await _repo.toggleLike(post.id, post.isLiked);
     } catch (e) {
-      posts[i] = post;
+      if (postIndex != -1) posts[postIndex] = post;
+      if (myPostIndex != -1) myPosts[myPostIndex] = post;
       notifyListeners();
     }
   }
@@ -142,6 +140,8 @@ class PostController extends ChangeNotifier {
       commentCount: post.commentCount,
       isSaved: !post.isSaved,
       authorName: post.authorName,
+      authorAvatarUrl: post.authorAvatarUrl,
+      authorRole: post.authorRole,
       createdAt: post.createdAt,
     );
     notifyListeners();

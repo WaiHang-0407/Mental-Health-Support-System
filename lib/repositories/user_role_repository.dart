@@ -29,10 +29,10 @@ class UserRoleRepository {
       final data = await supabase
           .from('users')
           .select('id, role')
-          .inFilter('id', userIds);
+          .inFilter('id', userIds.toSet().toList());
 
       final roles = <String, String?>{};
-      for (final item in (data as List)) {
+      for (final item in data as List) {
         final id = item['id']?.toString();
         if (id != null) {
           roles[id] = item['role']?.toString();

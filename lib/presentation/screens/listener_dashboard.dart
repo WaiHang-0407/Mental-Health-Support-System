@@ -51,6 +51,9 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
     if (!mounted) return;
 
     if (profile == null) {
+      _conversationChannel?.unsubscribe();
+      _conversationChannel = null;
+
       setState(() {
         _listenerProfile = null;
 
@@ -76,12 +79,7 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
 
     if (!mounted) return;
 
-    if (profile != null) {
-      _listenToConversationUpdates(profile.id);
-    } else {
-      _conversationChannel?.unsubscribe();
-      _conversationChannel = null;
-    }
+    _listenToConversationUpdates(profile.id);
 
     setState(() {
       _listenerProfile = profile;
@@ -186,7 +184,7 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
 
     return CircleAvatar(
       radius: 18,
-      backgroundColor: Colors.white.withOpacity(0.18),
+      backgroundColor: Colors.white.withValues(alpha: 0.18),
       child: Text(
         name.isNotEmpty ? name[0].toUpperCase() : 'P',
         style: const TextStyle(
@@ -206,7 +204,7 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+            icon: Image.asset('assets/images/back.png', height: 24, width: 24),
             onPressed: () => Navigator.pop(context),
           ),
           title: const Text(
@@ -214,6 +212,7 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
+        bottomNavigationBar: const ListenerBottomNavBar(currentIndex: 0),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _listenerProfile == null
@@ -233,15 +232,15 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.08),
+                      color: Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.12)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                     ),
                     child: Row(
                       children: [
                         CircleAvatar(
                           radius: 24,
-                          backgroundColor: Colors.white.withOpacity(0.18),
+                          backgroundColor: Colors.white.withValues(alpha: 0.18),
                           child: Text(
                             _listenerProfile!.name.isNotEmpty
                                 ? _listenerProfile!.name[0].toUpperCase()
@@ -306,42 +305,38 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                             ],
                           ),
                         ),
+                        IconButton(
+                          tooltip: 'Edit profile',
+                          onPressed: () async {
+                            final saved = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ListenerEditProfilePage(),
+                              ),
+                            );
+
+                            if (saved == true) {
+                              await _loadDashboard();
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            color: Colors.white70,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    height: 46,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.edit, size: 18),
-                      label: const Text('Edit Listener Profile'),
-                      style: ElevatedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        backgroundColor: const Color(0xFF4C7CF3),
-                        overlayColor: Colors.white.withOpacity(0.16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        elevation: 2,
-                      ),
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ListenerEditProfilePage(),
-                          ),
-                        );
-                        await _loadDashboard();
-                      },
-                    ),
-                  ),
+
                   const SizedBox(height: 20),
+
+                  // ===== Statistics Card =====
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.07),
+                      color: Colors.white.withValues(alpha: .07),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(.12)),
+                      border: Border.all(color: Colors.white.withValues(alpha: .12)),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -419,10 +414,10 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.07),
+                        color: Colors.white.withValues(alpha: 0.07),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withValues(alpha: 0.1),
                         ),
                       ),
                       child: const Text(
@@ -438,10 +433,10 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.07),
+                          color: Colors.white.withValues(alpha: 0.07),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
+                            color: Colors.white.withValues(alpha: 0.1),
                           ),
                         ),
                         child: Column(
@@ -512,9 +507,9 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.07),
+                        color: Colors.white.withValues(alpha: .07),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white.withOpacity(.1)),
+                        border: Border.all(color: Colors.white.withValues(alpha: .1)),
                       ),
                       child: const Text(
                         'No active sessions.',
@@ -529,10 +524,10 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.07),
+                          color: Colors.white.withValues(alpha: .07),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: Colors.white.withOpacity(.1),
+                            color: Colors.white.withValues(alpha: .1),
                           ),
                         ),
                         child: Column(
@@ -604,9 +599,9 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.07),
+                        color: Colors.white.withValues(alpha: .07),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white.withOpacity(.1)),
+                        border: Border.all(color: Colors.white.withValues(alpha: .1)),
                       ),
                       child: const Text(
                         'No completed sessions yet.',
@@ -635,10 +630,10 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(.07),
+                            color: Colors.white.withValues(alpha: .07),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                              color: Colors.white.withOpacity(.1),
+                              color: Colors.white.withValues(alpha: .1),
                             ),
                           ),
                           child: Column(
@@ -702,7 +697,6 @@ class _ListenerDashboardPageState extends State<ListenerDashboardPage> {
                     }),
                 ],
               ),
-        bottomNavigationBar: const ListenerBottomNavBar(currentIndex: 0),
       ),
     );
   }

@@ -86,6 +86,8 @@ class UserActivityLog {
         return 'You changed your profile picture';
       case 'chat_started':
         return 'You started an AI companion chat';
+      case 'activity_path_selected':
+        return 'You started an activity path';
       default:
         return action.replaceAll('_', ' ');
     }
