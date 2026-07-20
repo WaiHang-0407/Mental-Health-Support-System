@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -524,6 +527,16 @@ class _ActivityDetails extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          if (activity.imageUrl?.isNotEmpty == true) ...[
+            ClipRRect(
+              borderRadius: const BorderRadius.all(Radius.circular(8)),
+              child: AspectRatio(
+                aspectRatio: 16 / 7,
+                child: Image.network(activity.imageUrl!, fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Text(
             activity.title,
             style: const TextStyle(
@@ -802,6 +815,10 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
   final _venueController = TextEditingController();
   final _maxParticipantsController = TextEditingController();
   final Set<String> _selectedSponsorshipIds = {};
+  Uint8List? _coverImageBytes;
+  String? _coverImageFileName;
+  String? _coverImageMimeType;
+  String? _existingCoverImageUrl;
   DateTime? _eventDate;
 
   bool get _isEditing => widget.activity != null;
@@ -820,6 +837,7 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
     _descriptionController.text = activity.description ?? '';
     _venueController.text = activity.venue ?? '';
     _maxParticipantsController.text = activity.maxParticipants?.toString() ?? '';
+    _existingCoverImageUrl = activity.imageUrl;
     _eventDate = activity.eventDate;
     _selectedSponsorshipIds.addAll(
       activity.sponsorships
@@ -875,6 +893,33 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
     });
   }
 
+  Future<void> _pickCoverImage() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null || result.files.single.bytes == null) {
+      return;
+    }
+
+    final file = result.files.single;
+    setState(() {
+      _coverImageBytes = file.bytes;
+      _coverImageFileName = file.name;
+      _coverImageMimeType = _mimeTypeFor(file.extension);
+    });
+  }
+
+  void _removeCoverImage() {
+    setState(() {
+      _coverImageBytes = null;
+      _coverImageFileName = null;
+      _coverImageMimeType = null;
+      _existingCoverImageUrl = null;
+    });
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -910,21 +955,30 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
           : widget.controller.registrationDeadlineFor(eventDate),
       createdBy: userId,
       maxParticipants: _maxParticipantsForSubmit(),
+      coverImageUrl: _existingCoverImageUrl,
+      coverImageBytes: _coverImageBytes,
+      coverImageFileName: _coverImageFileName,
+      coverImageMimeType: _coverImageMimeType,
       sponsorshipIds: _isScheduleLocked
           ? widget.activity?.sponsorships.map((sponsorship) => sponsorship.id).toList() ??
               const []
           : _selectedSponsorshipIds.toList(),
     );
     final activity = widget.activity;
+    final scheduleChanged = activity != null &&
+        !_sameDateTime(activity.eventDate, eventDate);
     final success = activity == null
         ? await widget.controller.createActivity(input)
         : await widget.controller.updateActivity(
             activityId: activity.id,
             input: input,
+            enforceScheduleRules: scheduleChanged,
           );
 
     if (success && mounted) {
       Navigator.of(context).pop();
+    } else if (mounted) {
+      _showSnack(widget.controller.errorMessage ?? 'Unable to save changes.');
     }
   }
 
@@ -1038,6 +1092,18 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                         ),
                       );
 
+                      final coverSection = _ActivityFormSection(
+                        icon: Icons.image_outlined,
+                        title: 'Cover Photo',
+                        child: _CoverImagePicker(
+                          existingUrl: _existingCoverImageUrl,
+                          bytes: _coverImageBytes,
+                          fileName: _coverImageFileName,
+                          onPick: _pickCoverImage,
+                          onRemove: _removeCoverImage,
+                        ),
+                      );
+
                       final scheduleSection = _ActivityFormSection(
                         icon: Icons.event_outlined,
                         title: 'Schedule',
@@ -1138,6 +1204,8 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                                 Expanded(
                                   child: Column(
                                     children: [
+                                      coverSection,
+                                      const SizedBox(height: 14),
                                       scheduleSection,
                                       const SizedBox(height: 14),
                                       capacitySection,
@@ -1151,6 +1219,8 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                           : Column(
                               children: [
                                 detailsSection,
+                                const SizedBox(height: 14),
+                                coverSection,
                                 const SizedBox(height: 14),
                                 scheduleSection,
                                 const SizedBox(height: 14),
@@ -1195,6 +1265,17 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
     return null;
   }
 
+  bool _sameDateTime(DateTime? left, DateTime? right) {
+    if (left == null || right == null) {
+      return left == right;
+    }
+    return left.year == right.year &&
+        left.month == right.month &&
+        left.day == right.day &&
+        left.hour == right.hour &&
+        left.minute == right.minute;
+  }
+
   List<ActivitySponsorship> get _selectableSponsorships {
     final activity = widget.activity;
     final current = activity?.sponsorships
@@ -1216,6 +1297,96 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
     final assignmentLabel =
         assignmentCount == 1 ? 'Used by 1 activity' : 'Used by $assignmentCount activities';
     return '$assignmentLabel | ${sponsorship.products.length} products';
+  }
+
+  String _mimeTypeFor(String? extension) {
+    return switch ((extension ?? '').toLowerCase()) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'gif' => 'image/gif',
+      'webp' => 'image/webp',
+      'bmp' => 'image/bmp',
+      _ => 'application/octet-stream',
+    };
+  }
+}
+
+class _CoverImagePicker extends StatelessWidget {
+  const _CoverImagePicker({
+    required this.existingUrl,
+    required this.bytes,
+    required this.fileName,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final String? existingUrl;
+  final Uint8List? bytes;
+  final String? fileName;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage =
+        bytes != null || (existingUrl != null && existingUrl!.isNotEmpty);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: const BorderRadius.all(Radius.circular(8)),
+          child: Container(
+            height: 150,
+            color: const Color(0xFFE8ECEA),
+            child: hasImage
+                ? bytes != null
+                    ? Image.memory(bytes!, fit: BoxFit.cover)
+                    : Image.network(existingUrl!, fit: BoxFit.cover)
+                : const Center(
+                    child: Icon(
+                      Icons.image_outlined,
+                      color: Color(0xFF66736F),
+                      size: 34,
+                    ),
+                  ),
+          ),
+        ),
+        if (fileName?.isNotEmpty == true) ...[
+          const SizedBox(height: 8),
+          Text(
+            fileName!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF66736F),
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onPick,
+                icon: const Icon(Icons.upload_file_outlined),
+                label: Text(hasImage ? 'Replace Cover' : 'Select Cover'),
+              ),
+            ),
+            if (hasImage) ...[
+              const SizedBox(width: 8),
+              IconButton.outlined(
+                onPressed: onRemove,
+                tooltip: 'Remove cover',
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
   }
 }
 

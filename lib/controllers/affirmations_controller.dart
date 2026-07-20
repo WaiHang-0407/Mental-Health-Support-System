@@ -1,13 +1,19 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/affirmation.dart';
+import '../services/admin_activity_logs_service.dart';
 import '../services/affirmations_service.dart';
 
 class AffirmationsController extends ChangeNotifier {
-  AffirmationsController({AffirmationsService? affirmationsService})
-      : _affirmationsService = affirmationsService ?? AffirmationsService();
+  AffirmationsController({
+    AffirmationsService? affirmationsService,
+    AdminActivityLogsService? adminActivityLogsService,
+  })  : _affirmationsService = affirmationsService ?? AffirmationsService(),
+        _adminActivityLogsService =
+            adminActivityLogsService ?? AdminActivityLogsService();
 
   final AffirmationsService _affirmationsService;
+  final AdminActivityLogsService _adminActivityLogsService;
 
   bool _isLoading = false;
   bool _isSaving = false;
@@ -47,6 +53,10 @@ class AffirmationsController extends ChangeNotifier {
         text: text,
         createdBy: createdBy,
       );
+      await _adminActivityLogsService.log(
+        action: 'affirmation_created',
+        targetType: 'affirmation',
+      );
       await loadAffirmations();
       return true;
     } on ArgumentError catch (error) {
@@ -74,6 +84,11 @@ class AffirmationsController extends ChangeNotifier {
         affirmationId: affirmation.id,
         text: text,
       );
+      await _adminActivityLogsService.log(
+        action: 'affirmation_updated',
+        targetType: 'affirmation',
+        targetId: affirmation.id,
+      );
       await loadAffirmations();
       return true;
     } on ArgumentError catch (error) {
@@ -95,6 +110,11 @@ class AffirmationsController extends ChangeNotifier {
 
     try {
       await _affirmationsService.removeAffirmation(affirmation.id);
+      await _adminActivityLogsService.log(
+        action: 'affirmation_removed',
+        targetType: 'affirmation',
+        targetId: affirmation.id,
+      );
       await loadAffirmations();
     } catch (_) {
       _errorMessage = 'Unable to remove affirmation.';

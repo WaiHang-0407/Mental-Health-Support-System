@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../models/admin_profile.dart';
+import 'admin_activity_logs.dart';
 import 'activities.dart';
 import 'activity_paths.dart';
 import 'affirmations.dart';
+import 'community.dart';
+import 'daily_activities.dart';
 import 'sponsorships.dart';
 import 'users.dart';
 
@@ -12,9 +15,11 @@ enum AdminSection {
   users,
   reports,
   activityPaths,
+  community,
   activities,
   sponsorships,
   affirmations,
+  dailyActivities,
   activityLogs,
 }
 
@@ -50,13 +55,12 @@ class _HomePageState extends State<HomePage> {
           subtitle: 'Review reported posts and comments.',
         ),
       AdminSection.activityPaths => ActivityPathsPage(),
+      AdminSection.community => CommunityPage(),
       AdminSection.activities => ActivitiesPage(),
       AdminSection.sponsorships => SponsorshipsPage(),
       AdminSection.affirmations => AffirmationsPage(),
-      AdminSection.activityLogs => const _ComingSoonContent(
-          title: 'Activity Logs',
-          subtitle: 'Monitor patient actions across the platform.',
-        ),
+      AdminSection.dailyActivities => DailyActivitiesPage(),
+      AdminSection.activityLogs => AdminActivityLogsPage(),
     };
   }
 
@@ -115,55 +119,74 @@ class _Sidebar extends StatelessWidget {
             ],
           ),
           SizedBox(height: 32),
-          _NavItem(
-            icon: Icons.home_outlined,
-            label: 'Home',
-            selected: selectedSection == AdminSection.home,
-            onTap: () => onSelectSection(AdminSection.home),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _NavItem(
+                  icon: Icons.home_outlined,
+                  label: 'Home',
+                  selected: selectedSection == AdminSection.home,
+                  onTap: () => onSelectSection(AdminSection.home),
+                ),
+                _NavItem(
+                  icon: Icons.people_alt_outlined,
+                  label: 'Users',
+                  selected: selectedSection == AdminSection.users,
+                  onTap: () => onSelectSection(AdminSection.users),
+                ),
+                _NavItem(
+                  icon: Icons.report_outlined,
+                  label: 'Reports',
+                  selected: selectedSection == AdminSection.reports,
+                  onTap: () => onSelectSection(AdminSection.reports),
+                ),
+                _NavItem(
+                  icon: Icons.route_outlined,
+                  label: 'Activity Path',
+                  selected: selectedSection == AdminSection.activityPaths,
+                  onTap: () => onSelectSection(AdminSection.activityPaths),
+                ),
+                _NavItem(
+                  icon: Icons.forum_outlined,
+                  label: 'Community',
+                  selected: selectedSection == AdminSection.community,
+                  onTap: () => onSelectSection(AdminSection.community),
+                ),
+                _NavItem(
+                  icon: Icons.event_outlined,
+                  label: 'Community Activities',
+                  selected: selectedSection == AdminSection.activities,
+                  onTap: () => onSelectSection(AdminSection.activities),
+                ),
+                _NavItem(
+                  icon: Icons.volunteer_activism_outlined,
+                  label: 'Sponsorships',
+                  selected: selectedSection == AdminSection.sponsorships,
+                  onTap: () => onSelectSection(AdminSection.sponsorships),
+                ),
+                _NavItem(
+                  icon: Icons.format_quote,
+                  label: 'Affirmations',
+                  selected: selectedSection == AdminSection.affirmations,
+                  onTap: () => onSelectSection(AdminSection.affirmations),
+                ),
+                _NavItem(
+                  icon: Icons.self_improvement_outlined,
+                  label: 'Daily Activities',
+                  selected: selectedSection == AdminSection.dailyActivities,
+                  onTap: () => onSelectSection(AdminSection.dailyActivities),
+                ),
+                _NavItem(
+                  icon: Icons.analytics_outlined,
+                  label: 'Activity Logs',
+                  selected: selectedSection == AdminSection.activityLogs,
+                  onTap: () => onSelectSection(AdminSection.activityLogs),
+                ),
+              ],
+            ),
           ),
-          _NavItem(
-            icon: Icons.people_alt_outlined,
-            label: 'Users',
-            selected: selectedSection == AdminSection.users,
-            onTap: () => onSelectSection(AdminSection.users),
-          ),
-          _NavItem(
-            icon: Icons.report_outlined,
-            label: 'Reports',
-            selected: selectedSection == AdminSection.reports,
-            onTap: () => onSelectSection(AdminSection.reports),
-          ),
-          _NavItem(
-            icon: Icons.route_outlined,
-            label: 'Activity Path',
-            selected: selectedSection == AdminSection.activityPaths,
-            onTap: () => onSelectSection(AdminSection.activityPaths),
-          ),
-          _NavItem(
-            icon: Icons.event_outlined,
-            label: 'Community Activities',
-            selected: selectedSection == AdminSection.activities,
-            onTap: () => onSelectSection(AdminSection.activities),
-          ),
-          _NavItem(
-            icon: Icons.volunteer_activism_outlined,
-            label: 'Sponsorships',
-            selected: selectedSection == AdminSection.sponsorships,
-            onTap: () => onSelectSection(AdminSection.sponsorships),
-          ),
-          _NavItem(
-            icon: Icons.format_quote,
-            label: 'Affirmations',
-            selected: selectedSection == AdminSection.affirmations,
-            onTap: () => onSelectSection(AdminSection.affirmations),
-          ),
-          _NavItem(
-            icon: Icons.analytics_outlined,
-            label: 'Activity Logs',
-            selected: selectedSection == AdminSection.activityLogs,
-            onTap: () => onSelectSection(AdminSection.activityLogs),
-          ),
-          Spacer(),
+          SizedBox(height: 14),
           _AdminProfile(adminProfile: adminProfile, onSignOut: onSignOut),
         ],
       ),

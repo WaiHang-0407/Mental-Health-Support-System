@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/admin_user.dart';
+import '../services/admin_activity_logs_service.dart';
 import '../services/users_service.dart';
 
 enum JoinedDateSort {
@@ -9,10 +10,15 @@ enum JoinedDateSort {
 }
 
 class UsersController extends ChangeNotifier {
-  UsersController({UsersService? usersService})
-      : _usersService = usersService ?? UsersService();
+  UsersController({
+    UsersService? usersService,
+    AdminActivityLogsService? adminActivityLogsService,
+  })  : _usersService = usersService ?? UsersService(),
+        _adminActivityLogsService =
+            adminActivityLogsService ?? AdminActivityLogsService();
 
   final UsersService _usersService;
+  final AdminActivityLogsService _adminActivityLogsService;
 
   bool _isLoading = false;
   bool _isUpdatingStatus = false;
@@ -178,6 +184,11 @@ class UsersController extends ChangeNotifier {
       await _usersService.updateUserActiveStatus(
         userId: user.id,
         isActive: isActive,
+      );
+      await _adminActivityLogsService.log(
+        action: isActive ? 'user_activated' : 'user_deactivated',
+        targetType: 'user',
+        targetId: user.id,
       );
       await loadUsers();
     } catch (_) {

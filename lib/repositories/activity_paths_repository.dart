@@ -12,7 +12,9 @@ class ActivityPathsRepository {
   Future<List<ActivityPath>> fetchActivityPaths() async {
     final pathsResponse = await _client
         .from(DatabaseTables.activityPaths)
-        .select('id, title, description, is_archived, is_deleted, created_at')
+        .select(
+          'id, title, description, cover_image_url, is_archived, is_deleted, created_at',
+        )
         .order('created_at', ascending: false);
     final pathRows = pathsResponse.cast<Map<String, dynamic>>();
 
@@ -35,6 +37,7 @@ class ActivityPathsRepository {
         .insert({
           'title': input.title,
           'description': input.description,
+          'cover_image_url': await _coverImageUrl(null, input),
           'created_by': input.createdBy,
         })
         .select('id')
@@ -53,6 +56,7 @@ class ActivityPathsRepository {
     await _client.from(DatabaseTables.activityPaths).update({
       'title': input.title,
       'description': input.description,
+      'cover_image_url': await _coverImageUrl(activityPathId, input),
       'updated_at': DateTime.now().toIso8601String(),
     }).eq('id', activityPathId);
 
@@ -179,6 +183,36 @@ class ActivityPathsRepository {
           bytes,
           fileOptions: FileOptions(
             contentType: image.imageMimeType ?? 'application/octet-stream',
+            upsert: true,
+          ),
+        );
+
+    return _client.storage
+        .from(DatabaseTables.activityPathImagesBucket)
+        .getPublicUrl(path);
+  }
+
+  Future<String?> _coverImageUrl(
+    String? activityPathId,
+    ActivityPathDraft input,
+  ) async {
+    final bytes = input.coverImageBytes;
+    if (bytes == null || bytes.isEmpty) {
+      return input.coverImageUrl;
+    }
+
+    final fileName =
+        _safeFileName(input.coverImageFileName ?? 'activity-path-cover');
+    final folder = activityPathId ?? 'new';
+    final path = '$folder/cover/${DateTime.now().microsecondsSinceEpoch}_$fileName';
+
+    await _client.storage
+        .from(DatabaseTables.activityPathImagesBucket)
+        .uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: input.coverImageMimeType ?? 'application/octet-stream',
             upsert: true,
           ),
         );

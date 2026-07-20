@@ -6,6 +6,7 @@ class CommunityActivity {
     required this.title,
     required this.createdAt,
     this.description,
+    this.imageUrl,
     this.venue,
     this.eventDate,
     this.registrationDeadline,
@@ -19,6 +20,7 @@ class CommunityActivity {
   final String title;
   final DateTime? createdAt;
   final String? description;
+  final String? imageUrl;
   final String? venue;
   final DateTime? eventDate;
   final DateTime? registrationDeadline;
@@ -84,6 +86,7 @@ class CommunityActivity {
       id: json['id'] as String,
       title: json['title'] as String? ?? '',
       description: json['description'] as String?,
+      imageUrl: json['image_url'] as String?,
       venue: json['location'] as String?,
       eventDate: _parseDate(json['event_date']),
       registrationDeadline: _parseDate(json['registration_deadline']),
@@ -342,6 +345,10 @@ class CreateCommunityActivityInput {
     required this.createdBy,
     this.maxParticipants,
     this.sponsorshipIds = const [],
+    this.coverImageUrl,
+    this.coverImageBytes,
+    this.coverImageFileName,
+    this.coverImageMimeType,
   });
 
   final String title;
@@ -352,4 +359,8 @@ class CreateCommunityActivityInput {
   final String createdBy;
   final int? maxParticipants;
   final List<String> sponsorshipIds;
+  final String? coverImageUrl;
+  final Uint8List? coverImageBytes;
+  final String? coverImageFileName;
+  final String? coverImageMimeType;
 }

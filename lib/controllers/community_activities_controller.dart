@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/community_activity.dart';
+import '../services/admin_activity_logs_service.dart';
 import '../services/community_activities_service.dart';
 
 enum ActivityStatusFilter {
@@ -14,10 +15,14 @@ enum ActivityStatusFilter {
 class CommunityActivitiesController extends ChangeNotifier {
   CommunityActivitiesController({
     CommunityActivitiesService? communityActivitiesService,
-  }) : _communityActivitiesService =
-            communityActivitiesService ?? CommunityActivitiesService();
+    AdminActivityLogsService? adminActivityLogsService,
+  })  : _communityActivitiesService =
+            communityActivitiesService ?? CommunityActivitiesService(),
+        _adminActivityLogsService =
+            adminActivityLogsService ?? AdminActivityLogsService();
 
   final CommunityActivitiesService _communityActivitiesService;
+  final AdminActivityLogsService _adminActivityLogsService;
 
   bool _isLoading = false;
   bool _isSaving = false;
@@ -141,13 +146,17 @@ class CommunityActivitiesController extends ChangeNotifier {
 
     try {
       await _communityActivitiesService.createActivity(input);
+      await _adminActivityLogsService.log(
+        action: 'community_activity_created',
+        targetType: 'community_activity',
+      );
       await loadActivities();
       return true;
     } on ArgumentError catch (error) {
       _errorMessage = error.message as String;
       return false;
-    } catch (_) {
-      _errorMessage = 'Unable to create community activity.';
+    } catch (error) {
+      _errorMessage = 'Unable to create community activity: $error';
       return false;
     } finally {
       _isSaving = false;
@@ -158,6 +167,7 @@ class CommunityActivitiesController extends ChangeNotifier {
   Future<bool> updateActivity({
     required String activityId,
     required CreateCommunityActivityInput input,
+    bool enforceScheduleRules = true,
   }) async {
     _isSaving = true;
     _errorMessage = null;
@@ -172,7 +182,12 @@ class CommunityActivitiesController extends ChangeNotifier {
         activityId: activityId,
         input: input,
         enforceScheduleRules:
-            existingActivity?.hasLockedRegistration != true,
+            enforceScheduleRules && existingActivity?.hasLockedRegistration != true,
+      );
+      await _adminActivityLogsService.log(
+        action: 'community_activity_updated',
+        targetType: 'community_activity',
+        targetId: activityId,
       );
       await loadActivities();
       _selectedActivityId = activityId;
@@ -180,8 +195,8 @@ class CommunityActivitiesController extends ChangeNotifier {
     } on ArgumentError catch (error) {
       _errorMessage = error.message as String;
       return false;
-    } catch (_) {
-      _errorMessage = 'Unable to update community activity.';
+    } catch (error) {
+      _errorMessage = 'Unable to update community activity: $error';
       return false;
     } finally {
       _isSaving = false;
@@ -199,6 +214,10 @@ class CommunityActivitiesController extends ChangeNotifier {
     try {
       await _communityActivitiesService.createSponsorship(
         sponsorship: sponsorship,
+      );
+      await _adminActivityLogsService.log(
+        action: 'sponsorship_created',
+        targetType: 'sponsorship',
       );
       await loadActivities();
       return true;
@@ -227,6 +246,11 @@ class CommunityActivitiesController extends ChangeNotifier {
         sponsorshipId: sponsorshipId,
         sponsorship: sponsorship,
       );
+      await _adminActivityLogsService.log(
+        action: 'sponsorship_updated',
+        targetType: 'sponsorship',
+        targetId: sponsorshipId,
+      );
       await loadActivities();
       return true;
     } on ArgumentError catch (error) {
@@ -244,54 +268,81 @@ class CommunityActivitiesController extends ChangeNotifier {
   Future<void> archiveActivity(String activityId) async {
     await _runMutation(
       () => _communityActivitiesService.archiveActivity(activityId),
+      action: 'community_activity_archived',
+      targetType: 'community_activity',
+      targetId: activityId,
     );
   }
 
   Future<void> unarchiveActivity(String activityId) async {
     await _runMutation(
       () => _communityActivitiesService.unarchiveActivity(activityId),
+      action: 'community_activity_unarchived',
+      targetType: 'community_activity',
+      targetId: activityId,
     );
   }
 
   Future<void> deleteActivity(String activityId) async {
     await _runMutation(
       () => _communityActivitiesService.deleteActivity(activityId),
+      action: 'community_activity_deleted',
+      targetType: 'community_activity',
+      targetId: activityId,
     );
   }
 
   Future<void> archiveSponsorship(String sponsorshipId) async {
     await _runMutation(
       () => _communityActivitiesService.archiveSponsorship(sponsorshipId),
+      action: 'sponsorship_archived',
+      targetType: 'sponsorship',
+      targetId: sponsorshipId,
     );
   }
 
   Future<void> unarchiveSponsorship(String sponsorshipId) async {
     await _runMutation(
       () => _communityActivitiesService.unarchiveSponsorship(sponsorshipId),
+      action: 'sponsorship_unarchived',
+      targetType: 'sponsorship',
+      targetId: sponsorshipId,
     );
   }
 
   Future<void> deleteSponsorship(String sponsorshipId) async {
     await _runMutation(
       () => _communityActivitiesService.deleteSponsorship(sponsorshipId),
+      action: 'sponsorship_deleted',
+      targetType: 'sponsorship',
+      targetId: sponsorshipId,
     );
   }
 
   Future<void> archiveProduct(String productId) async {
     await _runMutation(
       () => _communityActivitiesService.archiveProduct(productId),
+      action: 'sponsorship_product_archived',
+      targetType: 'sponsorship_product',
+      targetId: productId,
     );
   }
 
   Future<void> unarchiveProduct(String productId) async {
     await _runMutation(
       () => _communityActivitiesService.unarchiveProduct(productId),
+      action: 'sponsorship_product_unarchived',
+      targetType: 'sponsorship_product',
+      targetId: productId,
     );
   }
 
   Future<void> deleteProduct(String productId) async {
     await _runMutation(
       () => _communityActivitiesService.deleteProduct(productId),
+      action: 'sponsorship_product_deleted',
+      targetType: 'sponsorship_product',
+      targetId: productId,
     );
   }
 
@@ -310,6 +361,11 @@ class CommunityActivitiesController extends ChangeNotifier {
         sponsorshipId: sponsorshipId,
         input: input,
       );
+      await _adminActivityLogsService.log(
+        action: 'sponsorship_product_updated',
+        targetType: 'sponsorship_product',
+        targetId: productId,
+      );
       await loadActivities();
       return true;
     } on ArgumentError catch (error) {
@@ -324,13 +380,23 @@ class CommunityActivitiesController extends ChangeNotifier {
     }
   }
 
-  Future<void> _runMutation(Future<void> Function() action) async {
+  Future<void> _runMutation(
+    Future<void> Function() mutation, {
+    required String action,
+    required String targetType,
+    required String targetId,
+  }) async {
     _isSaving = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      await action();
+      await mutation();
+      await _adminActivityLogsService.log(
+        action: action,
+        targetType: targetType,
+        targetId: targetId,
+      );
       await loadActivities();
     } catch (_) {
       _errorMessage = 'Unable to update the selected record.';

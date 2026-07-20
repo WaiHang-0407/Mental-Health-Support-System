@@ -538,6 +538,16 @@ class _ActivityPathDetails extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          if (path.coverImageUrl?.isNotEmpty == true) ...[
+            ClipRRect(
+              borderRadius: const BorderRadius.all(Radius.circular(8)),
+              child: AspectRatio(
+                aspectRatio: 16 / 7,
+                child: Image.network(path.coverImageUrl!, fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Text(
             path.title,
             style: const TextStyle(
@@ -664,6 +674,10 @@ class _ActivityPathFormDialogState extends State<_ActivityPathFormDialog> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final List<_PageEditorState> _pages = [];
+  Uint8List? _coverImageBytes;
+  String? _coverImageFileName;
+  String? _coverImageMimeType;
+  String? _existingCoverImageUrl;
 
   bool get _isEditing => widget.activityPath != null;
 
@@ -678,6 +692,7 @@ class _ActivityPathFormDialogState extends State<_ActivityPathFormDialog> {
 
     _titleController.text = path.title;
     _descriptionController.text = path.description ?? '';
+    _existingCoverImageUrl = path.coverImageUrl;
     _pages.addAll([
       for (final page in path.pages)
         _PageEditorState(
@@ -727,6 +742,33 @@ class _ActivityPathFormDialogState extends State<_ActivityPathFormDialog> {
     });
   }
 
+  Future<void> _pickCoverImage() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null || result.files.single.bytes == null) {
+      return;
+    }
+
+    final file = result.files.single;
+    setState(() {
+      _coverImageBytes = file.bytes;
+      _coverImageFileName = file.name;
+      _coverImageMimeType = _mimeTypeFor(file.extension);
+    });
+  }
+
+  void _removeCoverImage() {
+    setState(() {
+      _coverImageBytes = null;
+      _coverImageFileName = null;
+      _coverImageMimeType = null;
+      _existingCoverImageUrl = null;
+    });
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -742,6 +784,10 @@ class _ActivityPathFormDialogState extends State<_ActivityPathFormDialog> {
       title: _titleController.text,
       description: _descriptionController.text,
       createdBy: userId,
+      coverImageUrl: _existingCoverImageUrl,
+      coverImageBytes: _coverImageBytes,
+      coverImageFileName: _coverImageFileName,
+      coverImageMimeType: _coverImageMimeType,
       pages: [
         for (final page in _pages)
           ActivityPathPageDraft(
@@ -770,6 +816,8 @@ class _ActivityPathFormDialogState extends State<_ActivityPathFormDialog> {
 
     if (success && mounted) {
       Navigator.of(context).pop();
+    } else if (mounted) {
+      _showSnack(widget.controller.errorMessage ?? 'Unable to save changes.');
     }
   }
 
@@ -825,6 +873,14 @@ class _ActivityPathFormDialogState extends State<_ActivityPathFormDialog> {
                         titleController: _titleController,
                         descriptionController: _descriptionController,
                         validator: _required,
+                      ),
+                      const SizedBox(height: 18),
+                      _PathCoverImagePicker(
+                        existingUrl: _existingCoverImageUrl,
+                        bytes: _coverImageBytes,
+                        fileName: _coverImageFileName,
+                        onPick: _pickCoverImage,
+                        onRemove: _removeCoverImage,
                       ),
                       const SizedBox(height: 18),
                       Container(
@@ -1230,6 +1286,112 @@ class _PickedPathImage {
       return name;
     }
     return 'Existing image';
+  }
+}
+
+class _PathCoverImagePicker extends StatelessWidget {
+  const _PathCoverImagePicker({
+    required this.existingUrl,
+    required this.bytes,
+    required this.fileName,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final String? existingUrl;
+  final Uint8List? bytes;
+  final String? fileName;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage =
+        bytes != null || (existingUrl != null && existingUrl!.isNotEmpty);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F7F8),
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
+        border: Border.all(color: const Color(0xFFE8ECEA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.all(Radius.circular(8)),
+            child: Container(
+              width: 210,
+              height: 118,
+              color: const Color(0xFFE8ECEA),
+              child: hasImage
+                  ? bytes != null
+                      ? Image.memory(bytes!, fit: BoxFit.cover)
+                      : Image.network(existingUrl!, fit: BoxFit.cover)
+                  : const Center(
+                      child: Icon(
+                        Icons.image_outlined,
+                        color: Color(0xFF66736F),
+                        size: 34,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Cover Photo',
+                  style: TextStyle(
+                    color: Color(0xFF17201D),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Shown as the main image for this activity path.',
+                  style: TextStyle(color: Color(0xFF66736F), fontSize: 12),
+                ),
+                if (fileName?.isNotEmpty == true) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    fileName!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF66736F),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: onPick,
+                      icon: const Icon(Icons.upload_file_outlined),
+                      label: Text(hasImage ? 'Replace Cover' : 'Select Cover'),
+                    ),
+                    if (hasImage)
+                      IconButton.outlined(
+                        onPressed: onRemove,
+                        tooltip: 'Remove cover',
+                        icon: const Icon(Icons.close),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

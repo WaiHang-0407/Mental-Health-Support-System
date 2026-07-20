@@ -61,6 +61,10 @@ class ActivityPathsService {
       title: input.title.trim(),
       description: input.description.trim(),
       createdBy: input.createdBy,
+      coverImageUrl: input.coverImageUrl,
+      coverImageBytes: input.coverImageBytes,
+      coverImageFileName: input.coverImageFileName,
+      coverImageMimeType: input.coverImageMimeType,
       pages: [
         for (final page in input.pages)
           ActivityPathPageDraft(

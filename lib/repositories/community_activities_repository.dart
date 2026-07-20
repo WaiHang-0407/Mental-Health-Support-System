@@ -14,7 +14,7 @@ class CommunityActivitiesRepository {
         .from(DatabaseTables.activities)
         .select(
           'id, title, description, location, event_date, registration_deadline, '
-          'max_participants, is_deleted, is_archived, created_at',
+          'image_url, max_participants, is_deleted, is_archived, created_at',
         )
         .order('created_at', ascending: false);
 
@@ -107,6 +107,7 @@ class CommunityActivitiesRepository {
         .insert({
           'title': input.title,
           'description': input.description,
+          'image_url': await _activityCoverImageUrl(null, input),
           'location': input.venue,
           'event_date': input.eventDate.toIso8601String(),
           'registration_deadline':
@@ -201,6 +202,7 @@ class CommunityActivitiesRepository {
     await _client.from(DatabaseTables.activities).update({
       'title': input.title,
       'description': input.description,
+      'image_url': await _activityCoverImageUrl(activityId, input),
       'location': input.venue,
       'event_date': input.eventDate.toIso8601String(),
       'registration_deadline': input.registrationDeadline.toIso8601String(),
@@ -444,6 +446,34 @@ class CommunityActivitiesRepository {
 
     return _client.storage
         .from(DatabaseTables.sponsorshipProductImagesBucket)
+        .getPublicUrl(path);
+  }
+
+  Future<String?> _activityCoverImageUrl(
+    String? activityId,
+    CreateCommunityActivityInput input,
+  ) async {
+    final bytes = input.coverImageBytes;
+    if (bytes == null || bytes.isEmpty) {
+      return input.coverImageUrl;
+    }
+
+    final fileName =
+        _safeFileName(input.coverImageFileName ?? 'activity-cover-image');
+    final folder = activityId ?? 'new';
+    final path = '$folder/${DateTime.now().microsecondsSinceEpoch}_$fileName';
+
+    await _client.storage.from(DatabaseTables.activityImagesBucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: input.coverImageMimeType ?? 'application/octet-stream',
+            upsert: true,
+          ),
+        );
+
+    return _client.storage
+        .from(DatabaseTables.activityImagesBucket)
         .getPublicUrl(path);
   }
 

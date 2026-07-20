@@ -6,9 +6,17 @@ class DatabaseTables {
   static const subscriptions = 'subscriptions';
   static const profiles = 'profiles';
   static const adminLoginLogs = 'admin_login_logs';
+  static const adminActivityLogs = 'admin_activity_logs';
   static const chatSessions = 'chat_sessions';
+  static const posts = 'posts';
+  static const comments = 'comments';
+  static const postLikes = 'post_likes';
+  static const reports = 'reports';
+  static const userWarnings = 'user_warnings';
   static const affirmations = 'affirmations';
+  static const dailyActivities = 'daily_activities';
   static const activities = 'activities';
+  static const activityImagesBucket = 'activity-images';
   static const activityRegistrations = 'activity_registrations';
   static const activitySponsorships = 'activity_sponsorships';
   static const sponsorships = 'sponsorships';

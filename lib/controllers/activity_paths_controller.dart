@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/activity_path.dart';
+import '../services/admin_activity_logs_service.dart';
 import '../services/activity_paths_service.dart';
 
 enum ActivityPathStatusFilter {
@@ -10,10 +11,15 @@ enum ActivityPathStatusFilter {
 }
 
 class ActivityPathsController extends ChangeNotifier {
-  ActivityPathsController({ActivityPathsService? activityPathsService})
-      : _activityPathsService = activityPathsService ?? ActivityPathsService();
+  ActivityPathsController({
+    ActivityPathsService? activityPathsService,
+    AdminActivityLogsService? adminActivityLogsService,
+  })  : _activityPathsService = activityPathsService ?? ActivityPathsService(),
+        _adminActivityLogsService =
+            adminActivityLogsService ?? AdminActivityLogsService();
 
   final ActivityPathsService _activityPathsService;
+  final AdminActivityLogsService _adminActivityLogsService;
 
   bool _isLoading = false;
   bool _isSaving = false;
@@ -92,13 +98,17 @@ class ActivityPathsController extends ChangeNotifier {
 
     try {
       await _activityPathsService.createActivityPath(input);
+      await _adminActivityLogsService.log(
+        action: 'activity_path_created',
+        targetType: 'activity_path',
+      );
       await loadActivityPaths();
       return true;
     } on ArgumentError catch (error) {
       _errorMessage = error.message as String;
       return false;
-    } catch (_) {
-      _errorMessage = 'Unable to create activity path.';
+    } catch (error) {
+      _errorMessage = 'Unable to create activity path: $error';
       return false;
     } finally {
       _isSaving = false;
@@ -119,14 +129,19 @@ class ActivityPathsController extends ChangeNotifier {
         activityPathId: activityPathId,
         input: input,
       );
+      await _adminActivityLogsService.log(
+        action: 'activity_path_updated',
+        targetType: 'activity_path',
+        targetId: activityPathId,
+      );
       await loadActivityPaths();
       _selectedPathId = activityPathId;
       return true;
     } on ArgumentError catch (error) {
       _errorMessage = error.message as String;
       return false;
-    } catch (_) {
-      _errorMessage = 'Unable to update activity path.';
+    } catch (error) {
+      _errorMessage = 'Unable to update activity path: $error';
       return false;
     } finally {
       _isSaving = false;
@@ -137,28 +152,47 @@ class ActivityPathsController extends ChangeNotifier {
   Future<void> archiveActivityPath(String activityPathId) {
     return _runMutation(
       () => _activityPathsService.archiveActivityPath(activityPathId),
+      action: 'activity_path_archived',
+      targetType: 'activity_path',
+      targetId: activityPathId,
     );
   }
 
   Future<void> unarchiveActivityPath(String activityPathId) {
     return _runMutation(
       () => _activityPathsService.unarchiveActivityPath(activityPathId),
+      action: 'activity_path_unarchived',
+      targetType: 'activity_path',
+      targetId: activityPathId,
     );
   }
 
   Future<void> deleteActivityPath(String activityPathId) {
     return _runMutation(
       () => _activityPathsService.deleteActivityPath(activityPathId),
+      action: 'activity_path_deleted',
+      targetType: 'activity_path',
+      targetId: activityPathId,
     );
   }
 
-  Future<void> _runMutation(Future<void> Function() action) async {
+  Future<void> _runMutation(
+    Future<void> Function() mutation, {
+    required String action,
+    required String targetType,
+    required String targetId,
+  }) async {
     _isSaving = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      await action();
+      await mutation();
+      await _adminActivityLogsService.log(
+        action: action,
+        targetType: targetType,
+        targetId: targetId,
+      );
       await loadActivityPaths();
     } catch (_) {
       _errorMessage = 'Unable to update the selected activity path.';

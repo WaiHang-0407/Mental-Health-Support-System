@@ -6,6 +6,7 @@ class ActivityPath {
     required this.title,
     required this.createdAt,
     this.description,
+    this.coverImageUrl,
     this.isArchived = false,
     this.isDeleted = false,
     this.selectedUserCount = 0,
@@ -15,6 +16,7 @@ class ActivityPath {
   final String id;
   final String title;
   final String? description;
+  final String? coverImageUrl;
   final bool isArchived;
   final bool isDeleted;
   final DateTime? createdAt;
@@ -40,6 +42,7 @@ class ActivityPath {
       id: json['id'] as String,
       title: json['title'] as String? ?? '',
       description: json['description'] as String?,
+      coverImageUrl: json['cover_image_url'] as String?,
       isArchived: _parseBool(json['is_archived']),
       isDeleted: _parseBool(json['is_deleted']),
       createdAt: _parseDate(json['created_at']),
@@ -157,10 +160,18 @@ class ActivityPathDraft {
     required this.description,
     required this.createdBy,
     required this.pages,
+    this.coverImageUrl,
+    this.coverImageBytes,
+    this.coverImageFileName,
+    this.coverImageMimeType,
   });
 
   final String title;
   final String description;
   final String createdBy;
   final List<ActivityPathPageDraft> pages;
+  final String? coverImageUrl;
+  final Uint8List? coverImageBytes;
+  final String? coverImageFileName;
+  final String? coverImageMimeType;
 }
